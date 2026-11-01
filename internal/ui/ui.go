@@ -11,6 +11,7 @@ import (
 	"github.com/ddvk/rmfakecloud/internal/app/passcodestore"
 	"github.com/ddvk/rmfakecloud/internal/common"
 	"github.com/ddvk/rmfakecloud/internal/config"
+	"github.com/ddvk/rmfakecloud/internal/logbuf"
 	"github.com/ddvk/rmfakecloud/internal/messages"
 	"github.com/ddvk/rmfakecloud/internal/screenshare"
 	"github.com/ddvk/rmfakecloud/internal/storage"
@@ -77,6 +78,7 @@ type ReactAppWrapper struct {
 	backends      map[common.SyncVersion]backend
 	roomManager   *screenshare.RoomManager
 	mqtt          mqttBridge
+	logs          *logbuf.Buffer
 }
 
 // hack for serving index.html on /
@@ -120,6 +122,7 @@ func New(cfg *config.Config,
 		},
 		roomManager: roomManager,
 		mqtt:        mqttBroker,
+		logs:        logbuf.Default(),
 	}
 	return &staticWrapper
 }

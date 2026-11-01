@@ -12,6 +12,7 @@ import (
 	"github.com/ddvk/rmfakecloud/internal/app"
 	"github.com/ddvk/rmfakecloud/internal/cli"
 	"github.com/ddvk/rmfakecloud/internal/config"
+	"github.com/ddvk/rmfakecloud/internal/logbuf"
 	"github.com/gin-gonic/gin"
 	"github.com/rifflock/lfshook"
 	"github.com/sirupsen/logrus"
@@ -33,6 +34,8 @@ func configureLogging() io.Closer {
 		formatter = &logrus.TextFormatter{}
 	}
 	logger.SetFormatter(formatter)
+	// keep recent lines in memory for the web UI logs tab
+	logger.AddHook(logbuf.Default())
 
 	var logFile io.Closer
 	if logfileName != "" {

@@ -101,4 +101,9 @@ func (app *ReactAppWrapper) RegisterRoutes(router *gin.Engine) {
 	admin.PUT("users", app.updateUser)
 	admin.POST("users", app.createUser)
 	admin.GET("users", app.getAppUsers)
+
+	// developer features: only for users with the Dev flag
+	dev := auth.Group("")
+	dev.Use(app.devMiddleware())
+	dev.GET("logs", app.getLogs)
 }
