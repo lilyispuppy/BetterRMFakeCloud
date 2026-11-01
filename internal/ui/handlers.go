@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ddvk/rmfakecloud/internal/common"
+	"github.com/ddvk/rmfakecloud/internal/devices"
 	"github.com/ddvk/rmfakecloud/internal/integrations"
 	"github.com/ddvk/rmfakecloud/internal/model"
 	"github.com/ddvk/rmfakecloud/internal/storage"
@@ -409,6 +410,13 @@ func (app *ReactAppWrapper) getAppUsers(c *gin.Context) {
 		return
 	}
 
+	var deviceInfo map[string][]devices.Device
+	if app.devices != nil {
+		if deviceInfo, err = app.devices.ListAll(); err != nil {
+			log.Warn("[ui] listing devices for the users list: ", err)
+		}
+	}
+
 	uilist := make([]viewmodel.User, 0)
 	for _, u := range users {
 		usr := viewmodel.User{
@@ -421,6 +429,13 @@ func (app *ReactAppWrapper) getAppUsers(c *gin.Context) {
 			Sync15:    u.Sync15,
 
 			IntegrationCount: len(u.Integrations),
+			DeviceCount:      len(deviceInfo[u.ID]),
+		}
+		for _, d := range deviceInfo[u.ID] {
+			if usr.LastSeen == nil || d.LastSeen.After(*usr.LastSeen) {
+				seen := d.LastSeen
+				usr.LastSeen = &seen
+			}
 		}
 		uilist = append(uilist, usr)
 	}

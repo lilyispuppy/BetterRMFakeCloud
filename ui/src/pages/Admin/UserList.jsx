@@ -124,6 +124,8 @@ export default function UserList() {
             <th>Dev</th>
             {devView && <th>Sync15</th>}
             {devView && <th>Integrations</th>}
+            {devView && <th>Devices</th>}
+            {devView && <th>Last seen</th>}
             <th>Created At</th>
             <th><Button onClick={newUser}>New User</Button></th>
           </tr>
@@ -147,6 +149,8 @@ export default function UserList() {
               </td>
               {devView && <td>{x.sync15 ? "yes" : "no"}</td>}
               {devView && <td>{x.integrationCount}</td>}
+              {devView && <td>{x.deviceCount}</td>}
+              {devView && <td>{x.lastSeen ? formatDate(x.lastSeen) : ""}</td>}
               <td>{formatDate(x.CreatedAt)}</td>
               <td><Button variant="danger" onClick={(e) => remove(e,x.userid)}>Delete</Button></td>
             </tr>

@@ -221,6 +221,9 @@ type User struct {
 	Sync15       bool `json:"sync15"`
 	// IntegrationCount is a detail for the dev view of the admin users list
 	IntegrationCount int `json:"integrationCount"`
+	// DeviceCount and LastSeen come from the device registry
+	DeviceCount int        `json:"deviceCount"`
+	LastSeen    *time.Time `json:"lastSeen,omitempty"`
 	CreatedAt    time.Time
 	Integrations []string `json:"integrations,omitempty"`
 }

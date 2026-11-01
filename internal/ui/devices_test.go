@@ -125,3 +125,29 @@ func TestDevicesWithNoStoreIsEmptyNotAnError(t *testing.T) {
 		t.Fatalf("got %d %+v", code, got)
 	}
 }
+
+func TestGetAppUsersIncludesDeviceCountAndLastSeen(t *testing.T) {
+	app := devicesApp(&model.User{ID: "alice"}, &model.User{ID: "bob"}, &model.User{ID: "carol"})
+	app.devices.(*fakeDeviceStore).byUser["alice"] = []devices.Device{
+		{ID: "A1", LastSeen: seenAt.Add(-time.Hour)},
+		{ID: "A2", LastSeen: seenAt},
+	}
+	r := gin.New()
+	r.GET("/users", app.getAppUsers)
+
+	w := do(r, http.MethodGet, "/users", nil)
+	var got []viewmodel.User
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]viewmodel.User{}
+	for _, u := range got {
+		byID[u.ID] = u
+	}
+	if byID["alice"].DeviceCount != 2 || byID["alice"].LastSeen == nil || !byID["alice"].LastSeen.Equal(seenAt) {
+		t.Fatalf("alice: %+v", byID["alice"])
+	}
+	if byID["carol"].DeviceCount != 0 || byID["carol"].LastSeen != nil {
+		t.Fatalf("carol has no devices: %+v", byID["carol"])
+	}
+}
