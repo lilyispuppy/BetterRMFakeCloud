@@ -1,0 +1,3 @@
+[submodule "reference/rmapi"]
+	path = reference/rmapi
+	url = https://github.com/ddvk/rmapi
