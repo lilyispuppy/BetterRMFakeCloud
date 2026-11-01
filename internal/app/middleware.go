@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ddvk/rmfakecloud/internal/common"
+	"github.com/ddvk/rmfakecloud/internal/devices"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 )
@@ -50,7 +51,31 @@ func (app *App) authMiddleware() gin.HandlerFunc {
 		c.Set(userIDKey, uid)
 		c.Set(deviceIDKey, claims.DeviceID)
 		log.Infof("%s UserId: %s deviceId: %s newSync: %t", authLog, uid, claims.DeviceID, isSync15)
+
+		syncVersion := "1.0"
+		if isSync15 {
+			syncVersion = "1.5"
+		}
+		app.recordDevice(c, uid, claims.DeviceID, claims.DeviceDesc, syncVersion)
 		c.Next()
+	}
+}
+
+// recordDevice notes that a device just made a request. Tracking is best
+// effort: a failure here must never fail the tablet's request.
+func (app *App) recordDevice(c *gin.Context, uid, deviceID, desc, syncVersion string) {
+	if app.devices == nil {
+		return
+	}
+	err := app.devices.Seen(uid, devices.Device{
+		ID:          deviceID,
+		Description: desc,
+		LastIP:      c.ClientIP(),
+		UserAgent:   c.GetHeader("User-Agent"),
+		SyncVersion: syncVersion,
+	})
+	if err != nil {
+		log.Debug(authLog, " not recording device: ", err)
 	}
 }
 

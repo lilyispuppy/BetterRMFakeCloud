@@ -17,6 +17,7 @@ import (
 	"github.com/ddvk/rmfakecloud/internal/hwr"
 	"github.com/ddvk/rmfakecloud/internal/mqtt"
 	"github.com/ddvk/rmfakecloud/internal/screenshare"
+	"github.com/ddvk/rmfakecloud/internal/devices"
 	"github.com/ddvk/rmfakecloud/internal/storage"
 
 	"github.com/ddvk/rmfakecloud/internal/storage/fs"
@@ -46,6 +47,12 @@ type App struct {
 	hwrClient     *hwr.HWRClient
 	mqttBroker    *mqtt.Broker
 	roomManager   *screenshare.RoomManager
+	devices       deviceRecorder
+}
+
+// deviceRecorder remembers which devices talk to the server
+type deviceRecorder interface {
+	Seen(uid string, d devices.Device) error
 }
 
 // Start starts the app
@@ -137,6 +144,7 @@ func NewApp(cfg *config.Config) App {
 		cfg.CreateFirstUser = true
 	}
 	ntfHub := hub.NewHub()
+	deviceStore := devices.NewStore(cfg.DataDir)
 	pcStore := passcodestore.NewInMemory()
 	codeConnector := NewCodeConnector()
 	router := gin.Default()
@@ -169,6 +177,7 @@ func NewApp(cfg *config.Config) App {
 		hub:           ntfHub,
 		passcodeStore: pcStore,
 		codeConnector: codeConnector,
+		devices:       deviceStore,
 		hwrClient: &hwr.HWRClient{
 			Cfg: cfg,
 		},
@@ -180,7 +189,7 @@ func NewApp(cfg *config.Config) App {
 
 	app.registerRoutes(router)
 
-	uiApp := ui.New(cfg, fsStorage, codeConnector, ntfHub, pcStore, fsStorage, fsStorage, roomMgr, app.mqttBroker)
+	uiApp := ui.New(cfg, fsStorage, codeConnector, ntfHub, pcStore, fsStorage, fsStorage, roomMgr, app.mqttBroker, deviceStore)
 	uiApp.RegisterRoutes(router)
 
 	storageapp := fs.NewApp(cfg, fsStorage)

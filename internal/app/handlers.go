@@ -94,6 +94,7 @@ func (app *App) newDevice(c *gin.Context) {
 		return
 	}
 	log.Info("Request: ", tokenRequest, "Token for:", uid)
+	app.recordDevice(c, common.SanitizeUid(uid), tokenRequest.DeviceID, tokenRequest.DeviceDesc, "")
 
 	// generate the JWT token
 	claims := &DeviceClaims{

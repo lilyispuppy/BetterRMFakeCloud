@@ -252,3 +252,17 @@ type NewFolder struct {
 	ParentID string `json:"parentId"`
 	Name     string `json:"name"`
 }
+
+// Device is a device as shown in the web UI. LastIP and UserAgent are only
+// filled in for users with the Dev flag.
+type Device struct {
+	ID          string    `json:"id"`
+	UserID      string    `json:"userId,omitempty"`
+	Description string    `json:"description"`
+	FirstSeen   time.Time `json:"firstSeen"`
+	LastSeen    time.Time `json:"lastSeen"`
+	SyncVersion string    `json:"syncVersion,omitempty"`
+	Online      bool      `json:"online"`
+	LastIP      string    `json:"lastIP,omitempty"`
+	UserAgent   string    `json:"userAgent,omitempty"`
+}

@@ -11,6 +11,7 @@ import (
 	"github.com/ddvk/rmfakecloud/internal/app/passcodestore"
 	"github.com/ddvk/rmfakecloud/internal/common"
 	"github.com/ddvk/rmfakecloud/internal/config"
+	"github.com/ddvk/rmfakecloud/internal/devices"
 	"github.com/ddvk/rmfakecloud/internal/logbuf"
 	"github.com/ddvk/rmfakecloud/internal/messages"
 	"github.com/ddvk/rmfakecloud/internal/screenshare"
@@ -79,6 +80,17 @@ type ReactAppWrapper struct {
 	roomManager   *screenshare.RoomManager
 	mqtt          mqttBridge
 	logs          *logbuf.Buffer
+	devices       deviceLister
+	online        onlineChecker
+}
+
+type deviceLister interface {
+	List(uid string) ([]devices.Device, error)
+	ListAll() (map[string][]devices.Device, error)
+}
+
+type onlineChecker interface {
+	ConnectedDevices(uid string) []string
 }
 
 // hack for serving index.html on /
@@ -94,7 +106,8 @@ func New(cfg *config.Config,
 	docHandler documentHandler,
 	blobHandler blobHandler,
 	roomManager *screenshare.RoomManager,
-	mqttBroker mqttBridge) *ReactAppWrapper {
+	mqttBroker mqttBridge,
+	deviceStore deviceLister) *ReactAppWrapper {
 
 	sub, err := fs.Sub(webui.Assets, jsBuildFolder)
 	if err != nil {
@@ -123,6 +136,8 @@ func New(cfg *config.Config,
 		roomManager: roomManager,
 		mqtt:        mqttBroker,
 		logs:        logbuf.Default(),
+		devices:     deviceStore,
+		online:      h,
 	}
 	return &staticWrapper
 }

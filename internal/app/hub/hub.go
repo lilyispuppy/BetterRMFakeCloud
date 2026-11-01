@@ -28,6 +28,12 @@ type Hub struct {
 	additions     chan *wsClient
 	removals      chan *wsClient
 	notifications chan notification
+	queries       chan connectedQuery
+}
+
+type connectedQuery struct {
+	uid   string
+	reply chan []string
 }
 
 // DocumentNotification notification of something
@@ -187,6 +193,14 @@ func (h *Hub) ClientCount() int {
 	return len(h.allClients)
 }
 
+// ConnectedDevices returns the ids of a user's devices that currently have a live websocket
+func (h *Hub) ConnectedDevices(uid string) []string {
+	// the maps are owned by the hub loop, so ask it rather than reading them here
+	reply := make(chan []string, 1)
+	h.queries <- connectedQuery{uid: uid, reply: reply}
+	return <-reply
+}
+
 // NewHub construct a hub
 func NewHub() *Hub {
 	h := Hub{
@@ -196,6 +210,7 @@ func NewHub() *Hub {
 		additions:     make(chan *wsClient),
 		removals:      make(chan *wsClient),
 		notifications: make(chan notification, 5),
+		queries:       make(chan connectedQuery),
 	}
 	go h.start()
 	return &h
@@ -231,6 +246,12 @@ func (h *Hub) start() {
 		case c := <-h.notifications:
 			log.Info("hub: dispatching notification")
 			h.send(c)
+		case q := <-h.queries:
+			ids := make([]string, 0, len(h.userClients[q.uid]))
+			for c := range h.userClients[q.uid] {
+				ids = append(ids, c.deviceID)
+			}
+			q.reply <- ids
 		}
 	}
 }
