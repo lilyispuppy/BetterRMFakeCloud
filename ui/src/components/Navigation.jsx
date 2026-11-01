@@ -45,6 +45,11 @@ const NavigationBar = () => {
                   </Nav.Link>
                 </Nav.Item>
                 <Nav.Item>
+                  <Nav.Link as={NavLink} to="/explorer">
+                    Explorer
+                  </Nav.Link>
+                </Nav.Item>
+                <Nav.Item>
                   <Nav.Link as={NavLink} to="/devices">
                     Devices
                   </Nav.Link>

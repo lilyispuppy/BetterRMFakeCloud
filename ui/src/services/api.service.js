@@ -74,6 +74,34 @@ class ApiServices {
     });
   }
 
+  // rm calls one of the read-only rmapi style tools: info, tree, ls, find, stat.
+  // params may hold arrays (sent as repeated keys); empty values are left out.
+  rm(tool, params = {}) {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      (Array.isArray(value) ? value : [value]).forEach((v) => {
+        if (v !== undefined && v !== null && v !== "") qs.append(key, v);
+      });
+    });
+    return fetch(`${constants.ROOT_URL}/rm/${tool}?${qs}`, {
+      method: "GET",
+      headers: this.header(),
+    }).then(async (r) => {
+      if (r.status === 401) {
+        removeUser();
+        window.location.reload(true);
+        return;
+      }
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const err = new Error(body.error || r.statusText);
+        err.status = r.status;
+        throw err;
+      }
+      return body;
+    });
+  }
+
   listPasscodeResets() {
     return fetch(`${constants.ROOT_URL}/passcode/resets`, {
       method: "GET",
