@@ -1,6 +1,9 @@
 package ui
 
-import "github.com/golang-jwt/jwt/v4"
+import (
+	"github.com/ddvk/rmfakecloud/internal/model"
+	"github.com/golang-jwt/jwt/v4"
+)
 
 // WebUserClaims the claims
 type WebUserClaims struct {
@@ -17,3 +20,19 @@ const WebUsage = "web"
 
 // AdminRole is admin
 const AdminRole = "Admin"
+
+// DevRole marks users with developer features enabled
+const DevRole = "Dev"
+
+// rolesForUser lists the roles put in the web token. The UI treats the first
+// role as the primary one (Admin or User), so it must stay first.
+func rolesForUser(u *model.User) []string {
+	roles := []string{"User"}
+	if u.IsAdmin {
+		roles = []string{AdminRole}
+	}
+	if u.Dev {
+		roles = append(roles, DevRole)
+	}
+	return roles
+}

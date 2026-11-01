@@ -217,8 +217,21 @@ type User struct {
 	Name         string `json:"name"`
 	NewPassword  string `json:"newpassword,omitempty"`
 	IsAdmin 	 bool `json:"isAdmin"`
+	Dev          bool `json:"dev"`
+	Sync15       bool `json:"sync15"`
+	// IntegrationCount is a detail for the dev view of the admin users list
+	IntegrationCount int `json:"integrationCount"`
 	CreatedAt    time.Time
 	Integrations []string `json:"integrations,omitempty"`
+}
+
+// UpdateUser is the admin request to change a user. Dev is a pointer so that
+// a request which does not mention it leaves the flag untouched.
+type UpdateUser struct {
+	ID          string `json:"userid"`
+	Email       string `json:"email"`
+	NewPassword string `json:"newpassword,omitempty"`
+	Dev         *bool  `json:"dev,omitempty"`
 }
 
 // NewUser new user creation

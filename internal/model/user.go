@@ -51,6 +51,8 @@ type User struct {
 	IsAdmin bool
 	// Sync15 if the user should use this sync type (which uses a lot less bandwidth).
 	Sync15 bool
+	// Dev turns on developer features (logs tab, extra details) in the web UI. Set by an admin.
+	Dev bool `yaml:"dev,omitempty"`
 	// AdditionalScopes is a list of scopes to add to the user session.
 	AdditionalScopes []string
 	// Integrations stores the list of "Integrations" as shown on the tablet.

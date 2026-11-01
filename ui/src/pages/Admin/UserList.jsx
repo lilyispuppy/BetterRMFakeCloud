@@ -1,6 +1,6 @@
 import {useState} from "react";
 import { toast } from "react-toastify";
-import { Alert, Button, Modal, Table } from "react-bootstrap";
+import { Alert, Button, Form, Modal, Table } from "react-bootstrap";
 
 import useFetch from "../../hooks/useFetch";
 import Spinner from "../../components/Spinner";
@@ -8,6 +8,8 @@ import UserProfileModal from "./UserProfileModal";
 import NewUserModal from "./NewUserModal";
 import apiService from "../../services/api.service";
 import { formatDate } from "../../common/date";
+import { useAuthState } from "../../common/useAuthContext";
+import Role, { hasRole } from "../../common/Role";
 
 const userListUrl = "users";
 
@@ -17,6 +19,8 @@ const UpdateUser = 2;
 export default function UserList() {
   const [index, setIndex] = useState(false);
   const { data: userList, error, loading } = useFetch(`${userListUrl}`, index);
+  const { state: { user: me } } = useAuthState();
+  const devView = hasRole(me, Role.Dev);
   const [ state, setState ] = useState({showModal: 0, modalUser: null});
   const refresh = () =>{
     setIndex(previous => previous+1)
@@ -77,6 +81,15 @@ export default function UserList() {
       toast.error('Error:'+ e)
     }
   }
+  const toggleDev = async (e, x) => {
+    e.stopPropagation()
+    try {
+      await apiService.updateuser({ userid: x.userid, dev: e.target.checked })
+      refresh()
+    } catch (err) {
+      toast.error('Error:' + err)
+    }
+  }
   // const handleSave = async e => {
   //   e.preventDefault()
   //   try {
@@ -108,6 +121,9 @@ export default function UserList() {
             <th>Email</th>
             <th>Name</th>
             <th>Role</th>
+            <th>Dev</th>
+            {devView && <th>Sync15</th>}
+            {devView && <th>Integrations</th>}
             <th>Created At</th>
             <th><Button onClick={newUser}>New User</Button></th>
           </tr>
@@ -120,6 +136,17 @@ export default function UserList() {
               <td>{x.email}</td>
               <td>{x.Name}</td>
               <td>{x.isAdmin && "admin"}</td>
+              <td onClick={(e) => e.stopPropagation()}>
+                <Form.Check
+                  type="switch"
+                  id={`dev-${x.userid}`}
+                  aria-label={`Dev features for ${x.userid}`}
+                  checked={!!x.dev}
+                  onChange={(e) => toggleDev(e, x)}
+                />
+              </td>
+              {devView && <td>{x.sync15 ? "yes" : "no"}</td>}
+              {devView && <td>{x.integrationCount}</td>}
               <td>{formatDate(x.CreatedAt)}</td>
               <td><Button variant="danger" onClick={(e) => remove(e,x.userid)}>Delete</Button></td>
             </tr>

@@ -28,6 +28,19 @@ func (app *ReactAppWrapper) adminMiddleware() gin.HandlerFunc {
 	}
 }
 
+// devMiddleware only lets users with the Dev flag through. The flag is read
+// from storage rather than the token, so revoking it applies straight away.
+func (app *ReactAppWrapper) devMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, err := app.userStorer.GetUser(userID(c))
+		if err != nil || user == nil || !user.Dev {
+			log.Warn("not a dev user: ", userID(c))
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
+	}
+}
+
 func (app *ReactAppWrapper) authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, err := c.Cookie(cookieName)

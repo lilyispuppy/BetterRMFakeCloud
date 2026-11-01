@@ -147,11 +147,7 @@ func (app *ReactAppWrapper) login(c *gin.Context) {
 			Audience:  []string{WebUsage},
 		},
 	}
-	if user.IsAdmin {
-		claims.Roles = []string{AdminRole}
-	} else {
-		claims.Roles = []string{"User"}
-	}
+	claims.Roles = rolesForUser(user)
 
 	tokenString, err := common.SignClaims(claims, app.cfg.JWTSecretKey)
 
@@ -421,6 +417,10 @@ func (app *ReactAppWrapper) getAppUsers(c *gin.Context) {
 			Name:      u.Name,
 			CreatedAt: u.CreatedAt,
 			IsAdmin:   u.IsAdmin,
+			Dev:       u.Dev,
+			Sync15:    u.Sync15,
+
+			IntegrationCount: len(u.Integrations),
 		}
 		uilist = append(uilist, usr)
 	}
@@ -454,6 +454,7 @@ func (app *ReactAppWrapper) getUser(c *gin.Context) {
 		Email:     user.Email,
 		Name:      user.Name,
 		CreatedAt: user.CreatedAt,
+		Dev:       user.Dev,
 	}
 	for _, i := range user.Integrations {
 		vmUser.Integrations = append(vmUser.Integrations, i.Name)
@@ -463,7 +464,7 @@ func (app *ReactAppWrapper) getUser(c *gin.Context) {
 }
 
 func (app *ReactAppWrapper) updateUser(c *gin.Context) {
-	var req viewmodel.User
+	var req viewmodel.UpdateUser
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Error(err)
 		c.AbortWithStatus(http.StatusBadRequest)
@@ -486,6 +487,10 @@ func (app *ReactAppWrapper) updateUser(c *gin.Context) {
 
 	if req.Email != "" {
 		user.Email = req.Email
+	}
+
+	if req.Dev != nil {
+		user.Dev = *req.Dev
 	}
 
 	err = app.userStorer.UpdateUser(user)
