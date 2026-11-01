@@ -14,6 +14,7 @@ import (
 	"github.com/ddvk/rmfakecloud/internal/devices"
 	"github.com/ddvk/rmfakecloud/internal/logbuf"
 	"github.com/ddvk/rmfakecloud/internal/messages"
+	"github.com/ddvk/rmfakecloud/internal/rmtools"
 	"github.com/ddvk/rmfakecloud/internal/screenshare"
 	"github.com/ddvk/rmfakecloud/internal/storage"
 	"github.com/ddvk/rmfakecloud/internal/storage/models"
@@ -47,6 +48,7 @@ type documentHandler interface {
 
 type blobHandler interface {
 	GetCachedTree(uid string) (tree *models.HashTree, err error)
+	LoadBlob(uid, blobid string) (reader io.ReadCloser, gen int64, size int64, hash string, err error)
 	CreateBlobDocument(uid, name, parent string, reader io.Reader) (doc *storage.Document, err error)
 	UpdateBlobDocument(uid, docID, name, parent string) (err error)
 	DeleteBlobDocument(uid, docID string) (err error)
@@ -82,6 +84,7 @@ type ReactAppWrapper struct {
 	logs          *logbuf.Buffer
 	devices       deviceLister
 	online        onlineChecker
+	rm            *rmtools.Service
 }
 
 type deviceLister interface {
@@ -138,6 +141,7 @@ func New(cfg *config.Config,
 		logs:        logbuf.Default(),
 		devices:     deviceStore,
 		online:      h,
+		rm:          rmtools.New(rmSource{blobs: blobHandler}),
 	}
 	return &staticWrapper
 }

@@ -29,6 +29,9 @@ const (
 // ErrNotFound means the path or id does not exist
 var ErrNotFound = errors.New("not found")
 
+// ErrInvalidPattern means the find pattern is not a valid regular expression
+var ErrInvalidPattern = errors.New("invalid pattern")
+
 // Source is where the tree and blobs come from
 type Source interface {
 	// Tree returns the user's hash tree
@@ -309,7 +312,7 @@ func (s *Service) Find(uid, start string, opts FindOptions) ([]Node, error) {
 	if opts.Pattern != "" {
 		var err error
 		if re, err = regexp.Compile(opts.Pattern); err != nil {
-			return nil, fmt.Errorf("invalid pattern: %w", err)
+			return nil, fmt.Errorf("%w: %v", ErrInvalidPattern, err)
 		}
 	}
 	idx, err := s.index(uid)

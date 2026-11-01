@@ -59,6 +59,9 @@ func (app *ReactAppWrapper) RegisterRoutes(router *gin.Engine) {
 	// devices: your own, or everyone's with ?all=1 (admin only)
 	auth.GET("devices", app.getDevices)
 
+	// read-only rmapi style explorer (ls, find, stat ...)
+	app.registerRMRoutes(auth.Group("rm"))
+
 	// passcode (PIN) reset approval
 	auth.GET("passcode/resets", app.listPasscodeResets)
 	auth.POST("passcode/resets/:uuid/approve", app.approvePasscodeReset)
