@@ -34,6 +34,7 @@ and columns appear (or disappear) after the user's next login.
 With the flag on, a user gets:
 
 - a **Logs** tab,
+- content hashes and the raw `.metadata` / `.content` JSON in the [Explorer](explorer.md),
 - the raw device ID, IP address and user agent in the Devices tab,
 - extra columns in the Users list (if they are also an admin): sync 1.5,
   integration count, device count and last seen.

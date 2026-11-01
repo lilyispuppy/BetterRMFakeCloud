@@ -38,4 +38,5 @@ nav:
       - Diff Sync: usage/diff-sync.md
       - Passcode Reset: usage/passcode-reset.md
       - Devices and Dev Tools: usage/dev-tools.md
+      - Explorer: usage/explorer.md
   - Browser Extension: browser-extension.md
