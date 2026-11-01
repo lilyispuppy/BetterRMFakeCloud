@@ -15,6 +15,7 @@ This file, written in YAML, have the following relevant entries:
 | `password` | Password to access the account (in Argon2 format) |
 | `name` | Name displayed in the webui |
 | `isadmin` | Boolean indicating if the user can perform administration tasks (currently managing user accounts) |
+| `dev` | Boolean that turns on the [developer features](dev-tools.md) (Logs tab, extra details) for the user. Admins set it from the Users list in the web UI |
 | `sync15` | Boolean value that indicates if the user is using the [diff synchronization](diff-sync.md) (aka. sync 1.5) |
 | `integrations` | Array with the user integrations. See [Integrations](integrations.md) |
 
