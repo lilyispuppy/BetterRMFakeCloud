@@ -173,6 +173,28 @@ class ApiServices {
     }).then((r) => handleError(r));
   }
 
+  getLogs({ since = 0, level = "", q = "", limit = 500 } = {}) {
+    const params = new URLSearchParams();
+    if (since) params.set("since", since);
+    if (level) params.set("level", level);
+    if (q) params.set("q", q);
+    if (limit) params.set("limit", limit);
+    return fetch(`${constants.ROOT_URL}/logs?${params}`, {
+      method: "GET",
+      headers: this.header(),
+    }).then((r) => {
+      if (r.status === 401) {
+        removeUser();
+        window.location.reload(true);
+        return;
+      }
+      if (!r.ok) {
+        throw new Error(r.status === 403 ? "Dev features are not enabled for this user" : `Error ${r.status}`);
+      }
+      return r.json();
+    });
+  }
+
   listintegration() {
     return fetch(`${constants.ROOT_URL}/integrations`, {
       method: "GET",

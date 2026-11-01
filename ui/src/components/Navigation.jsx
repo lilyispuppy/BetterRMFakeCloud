@@ -1,6 +1,7 @@
 import React from "react";
 import { Nav, Navbar, Button, NavDropdown, Container } from "react-bootstrap";
 import { logout } from "../common/actions";
+import Role, { hasRole } from "../common/Role";
 import { useAuthState } from "../common/useAuthContext";
 import { NavLink } from "react-router-dom";
 
@@ -48,6 +49,13 @@ const NavigationBar = () => {
                     Screen Share
                   </Nav.Link>
                 </Nav.Item>
+                { hasRole(user, Role.Dev) &&
+                  <Nav.Item>
+                    <Nav.Link as={NavLink} to="/logs">
+                      Logs
+                    </Nav.Link>
+                  </Nav.Item>
+                }
 				{ isAdmin() &&
 
 					<Nav.Item>
