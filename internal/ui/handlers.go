@@ -271,8 +271,8 @@ func (app *ReactAppWrapper) getDocument(c *gin.Context) {
 
 	reader, err := backend.Export(uid, docid, exportType, exportOption)
 	if err != nil {
-		log.Error(err)
-		c.AbortWithStatus(http.StatusInternalServerError)
+		log.Error("exporting ", docid, ": ", err)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, viewmodel.NewErrorResponse("Unable to export the document: "+err.Error()))
 		return
 	}
 

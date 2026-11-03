@@ -132,17 +132,18 @@ func (fs *FileSystemStorage) Export(uid, docid string) (r io.ReadCloser, err err
 	if err != nil {
 		return nil, err
 	}
-	reader, writer := io.Pipe()
-	go func() {
-		err = exporter.Render(archive, writer)
-		if err != nil {
-			log.Error(err)
-			writer.Close()
-			return
-		}
-		writer.Close()
-	}()
-	return reader, err
+	return renderArchive(archive)
+}
+
+// renderArchive renders in memory first, so that a failure is an error the
+// caller can report, not an empty download
+func renderArchive(a *exporter.MyArchive) (io.ReadCloser, error) {
+	defer a.Close()
+	var out bytes.Buffer
+	if err := exporter.Render(a, &out); err != nil {
+		return nil, err
+	}
+	return io.NopCloser(&out), nil
 }
 
 // UpdateBlobDocument updates metadata
