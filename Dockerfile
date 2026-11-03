@@ -14,14 +14,27 @@ RUN pnpm install && pnpm build
 FROM golang:bookworm AS gobuilder
 ARG VERSION
 WORKDIR /src
+
+# Cairo draws the PDF of notebooks written by firmware 3.x (v6 .rm files)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libcairo2-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY . .
 COPY --from=uibuilder /src/dist ./ui/dist
-#RUN apk add git
-RUN go generate ./... && CGO_ENABLED=0 go build -ldflags "-s -w -X main.version=${VERSION}" -o rmfakecloud-docker ./cmd/rmfakecloud/
+RUN go generate ./... && CGO_ENABLED=1 go build -tags cairo -ldflags "-s -w -X main.version=${VERSION}" -o rmfakecloud-docker ./cmd/rmfakecloud/
 
-FROM scratch
+FROM debian:bookworm-slim
 EXPOSE 3000
-ADD ./docker/rootfs.tar /
-COPY --from=gobuilder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# libcairo2 is needed to run; the fonts are used for typed text in notebooks
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libcairo2 \
+    fontconfig \
+    fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=gobuilder /src/rmfakecloud-docker /
 ENTRYPOINT ["/rmfakecloud-docker"]

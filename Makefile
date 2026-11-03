@@ -3,7 +3,9 @@ LDFLAGS := "-s -w -X main.version=$(VERSION)"
 OUT_DIR := dist
 CMD := ./cmd/rmfakecloud
 BINARY := rmfakecloud
-BUILD = go build -ldflags $(LDFLAGS) -o $(@) $(CMD) 
+# TAGS=cairo adds the PDF export of v6 notebooks (needs cgo and the Cairo libraries)
+TAGS ?=
+BUILD = go build $(if $(TAGS),-tags $(TAGS)) -ldflags $(LDFLAGS) -o $(@) $(CMD) 
 ASSETS = ui/dist
 GOFILES := $(shell find . -iname '*.go' ! -iname "*_test.go")
 GOFILES += $(ASSETS)
@@ -35,7 +37,7 @@ $(OUT_DIR)/$(BINARY)-arm64:$(GOFILES)
 	GOARCH=arm64 $(BUILD)
 
 $(OUT_DIR)/$(BINARY)-docker:$(GOFILES)
-	CGO_ENABLED=0 $(BUILD)
+	CGO_ENABLED=1 go build -tags cairo -ldflags $(LDFLAGS) -o $(@) $(CMD)
 
 container: $(OUT_DIR)/$(BINARY)-docker
 	docker build -t rmfakecloud -f Dockerfile.make .

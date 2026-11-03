@@ -8,7 +8,12 @@ To be able to compile from source, you'll need the following dependencies:
 
 * [nodejs](https://nodejs.org) version 16 at most
 * [pnpm](https://pnpm.io/)
-* [go](https://go.dev/) version 1.16 at least
+* [go](https://go.dev/) version 1.25 at least
+* optional, for the PDF export of notebooks written by firmware 3.x (`.rm` v6):
+  the [Cairo](https://www.cairographics.org/) development libraries and `pkg-config`
+  (`apt-get install libcairo2-dev pkg-config`, `brew install cairo pkg-config`, `dnf install cairo-devel`).
+  Build with `make TAGS=cairo` (needs cgo). Without it, everything works but
+  exporting such a notebook as PDF reports an error. The Docker image includes it.
 * make
 
 Build
