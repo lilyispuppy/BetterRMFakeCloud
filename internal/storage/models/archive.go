@@ -22,6 +22,7 @@ func ArchiveFromHashDoc(doc *HashDoc, rs RemoteStorage) (*exporter.MyArchive, er
 		},
 	}
 
+	var details *ContentDetails
 	pageMap := make(map[string]string)
 	for _, f := range doc.Files {
 		filext := path.Ext(f.EntryName)
@@ -32,12 +33,16 @@ func ArchiveFromHashDoc(doc *HashDoc, rs RemoteStorage) (*exporter.MyArchive, er
 			if err != nil {
 				return nil, err
 			}
-			defer blob.Close()
 			contentBytes, err := io.ReadAll(blob)
+			blob.Close()
 			if err != nil {
 				return nil, err
 			}
 			err = json.Unmarshal(contentBytes, &a.Content)
+			if err != nil {
+				return nil, err
+			}
+			details, err = ParseContent(contentBytes)
 			if err != nil {
 				return nil, err
 			}
@@ -48,12 +53,6 @@ func ArchiveFromHashDoc(doc *HashDoc, rs RemoteStorage) (*exporter.MyArchive, er
 			if err != nil {
 				return nil, err
 			}
-			// defer blob.Close()
-			// contentBytes, err := ioutil.ReadAll(blob)
-			// if err != nil {
-			// 	return nil, err
-			// }
-			// a.Payload = contentBytes
 			//HACK:
 			a.PayloadReader = blob.(io.ReadSeekCloser)
 
@@ -65,29 +64,39 @@ func ArchiveFromHashDoc(doc *HashDoc, rs RemoteStorage) (*exporter.MyArchive, er
 		}
 	}
 
-	for _, p := range a.Content.Pages {
-		if hash, ok := pageMap[p]; ok {
+	if details == nil {
+		return &a, nil
+	}
+
+	// firmware 3.x lists pages in cPages, older documents in pages
+	for _, p := range details.PageList() {
+		pd := exporter.PageData{ID: p.ID, DocPage: p.DocPage}
+		page := archive.Page{Pagedata: "Blank", DocPage: p.DocPage}
+
+		if hash, ok := pageMap[p.ID]; ok {
 			log.Debug("page ", hash)
 			reader, err := rs.GetReader(hash)
 			if err != nil {
 				return nil, err
 			}
 			pageBin, err := io.ReadAll(reader)
+			reader.Close()
 			if err != nil {
 				return nil, err
 			}
-			rmpage := rm.New()
-			err = rmpage.UnmarshalBinary(pageBin)
-			if err != nil {
-				return nil, err
-			}
+			pd.Raw = pageBin
 
-			page := archive.Page{
-				Data:     rmpage,
-				Pagedata: "Blank",
+			// rmapi cannot read everything (v6 text, for one): keep the raw
+			// data and carry on without the parsed strokes
+			rmpage := rm.New()
+			if err := rmpage.UnmarshalBinary(pageBin); err != nil {
+				log.Warnf("page %s of %s: rmapi cannot parse it: %v", p.ID, uuid, err)
+			} else {
+				page.Data = rmpage
 			}
-			a.Pages = append(a.Pages, page)
 		}
+		a.PageData = append(a.PageData, pd)
+		a.Pages = append(a.Pages, page)
 	}
 
 	return &a, nil
