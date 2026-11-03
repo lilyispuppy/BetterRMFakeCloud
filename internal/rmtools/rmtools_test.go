@@ -79,6 +79,10 @@ func fixture() (*Service, *fakeSource) {
 		},
 		reads: map[string]int{},
 	}
+	// d1 has one drawn page (p1) and one that was never drawn on (p2)
+	d1 := src.tree.Docs[3]
+	d1.Files = append(d1.Files, &models.HashEntry{EntryName: "d1/p1.rm", Hash: "rm-p1", Size: 9})
+	src.blobs["rm-p1"] = "page-one!"
 	return New(src), src
 }
 
@@ -253,7 +257,7 @@ func TestStatReportsEverythingWeKnow(t *testing.T) {
 	if st.ID != "d1" || st.Path != "/Work/Notes" || st.Hash != "doc-d1" || st.FileType != "notebook" {
 		t.Fatalf("stat: %+v", st)
 	}
-	if st.TotalSize != 5300 || len(st.Files) != 3 || st.Files[1].Name != "d1.content" || st.Files[1].Hash != "content-d1" {
+	if st.TotalSize != 5309 || len(st.Files) != 4 || st.Files[1].Name != "d1.content" || st.Files[1].Hash != "content-d1" {
 		t.Fatalf("files: %+v total %d", st.Files, st.TotalSize)
 	}
 	if st.Content == nil || st.Content.FormatVersion != 2 {
@@ -330,5 +334,37 @@ func TestSourceErrorsPropagate(t *testing.T) {
 	}
 	if _, err := s.Info("u"); err == nil {
 		t.Fatal("expected an error")
+	}
+}
+
+func TestPageDataReturnsTheRmFileOfAPage(t *testing.T) {
+	s, _ := fixture()
+	raw, err := s.PageData("u", "/Work/Notes", 0)
+	if err != nil || string(raw) != "page-one!" {
+		t.Fatalf("got %q, %v", raw, err)
+	}
+	// by id too
+	if raw, err := s.PageData("u", "d1", 0); err != nil || string(raw) != "page-one!" {
+		t.Fatalf("by id: %q, %v", raw, err)
+	}
+}
+
+func TestPageDataOfABlankPageIsNilWithoutError(t *testing.T) {
+	s, _ := fixture()
+	raw, err := s.PageData("u", "/Work/Notes", 1)
+	if err != nil || raw != nil {
+		t.Fatalf("got %q, %v", raw, err)
+	}
+}
+
+func TestPageDataErrors(t *testing.T) {
+	s, _ := fixture()
+	for _, c := range []struct {
+		target string
+		page   int
+	}{{"/Work/Notes", 2}, {"/Work/Notes", -1}, {"/Work", 0}, {"/nope", 0}, {"/Todo", 0}} {
+		if _, err := s.PageData("u", c.target, c.page); !errors.Is(err, ErrNotFound) {
+			t.Errorf("%v: want ErrNotFound, got %v", c, err)
+		}
 	}
 }

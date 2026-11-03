@@ -8,6 +8,7 @@ import (
 
 	"github.com/ddvk/rmfakecloud/internal/common"
 	"github.com/ddvk/rmfakecloud/internal/rmtools"
+	"github.com/ddvk/rmfakecloud/internal/storage/exporter"
 	"github.com/ddvk/rmfakecloud/internal/storage/models"
 	"github.com/ddvk/rmfakecloud/internal/ui/viewmodel"
 	"github.com/gin-gonic/gin"
@@ -37,6 +38,7 @@ func (app *ReactAppWrapper) registerRMRoutes(g *gin.RouterGroup) {
 	g.GET("ls", app.rmLs)
 	g.GET("find", app.rmFind)
 	g.GET("stat", app.rmStat)
+	g.GET("page", app.rmPage)
 }
 
 // requireSync15: the tools read the sync 1.5 hash tree, nothing else
@@ -156,4 +158,42 @@ func (app *ReactAppWrapper) rmStat(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, st)
+}
+
+// an empty page, at the size of the tablet
+const blankPageSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1404" height="1872" viewBox="0 0 1404 1872"></svg>`
+
+// rmPage draws one page of a notebook as an SVG, for previews
+func (app *ReactAppWrapper) rmPage(c *gin.Context) {
+	target := c.Query("id")
+	if target == "" {
+		target = c.Query("path")
+	}
+	page, err := strconv.Atoi(c.Query("page"))
+	if target == "" || err != nil || page < 0 {
+		c.AbortWithStatusJSON(http.StatusBadRequest, viewmodel.NewErrorResponse("id (or path) and a page number are required"))
+		return
+	}
+
+	raw, err := app.rm.PageData(userID(c), target, page)
+	if err != nil {
+		app.rmFail(c, err)
+		return
+	}
+
+	svg := []byte(blankPageSVG)
+	if raw != nil {
+		if exporter.DetectVersion(raw) != exporter.VersionV6 {
+			c.AbortWithStatusJSON(http.StatusUnsupportedMediaType,
+				viewmodel.NewErrorResponse("Previews are only available for pages written by firmware 3 or newer."))
+			return
+		}
+		if svg, err = app.renderPage(raw); err != nil {
+			log.Error("[ui] rendering a page preview: ", err)
+			c.AbortWithStatusJSON(http.StatusInternalServerError, viewmodel.NewErrorResponse("Unable to draw the page."))
+			return
+		}
+	}
+	c.Header("Cache-Control", "private, max-age=60")
+	c.Data(http.StatusOK, "image/svg+xml", svg)
 }

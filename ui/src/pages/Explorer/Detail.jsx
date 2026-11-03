@@ -5,7 +5,7 @@ import { toast } from "react-toastify";
 import useFetch from "../../hooks/useFetch";
 import Spinner from "../../components/Spinner";
 import { formatMillis, humanSize, isFolder } from "./format";
-import { getAnnotatedPdf, getRmdoc } from "./download";
+import { getAnnotatedPdf, getRmdoc, pageUrl } from "./download";
 
 const pretty = (raw) => {
   if (!raw) return "";
@@ -90,6 +90,22 @@ function Files({ st, dev }) {
   );
 }
 
+function Thumbnail({ id, page }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <span className="text-muted small">No preview</span>;
+  return (
+    <a href={pageUrl(id, page)} target="_blank" rel="noreferrer">
+      <img
+        src={pageUrl(id, page)}
+        alt={`Page ${page + 1}`}
+        loading="lazy"
+        onError={() => setFailed(true)}
+        style={{ maxWidth: 90, maxHeight: 120, background: "#fff", border: "1px solid #ccc" }}
+      />
+    </a>
+  );
+}
+
 function Pages({ st }) {
   if (!st.pages.length) {
     return <p className="text-muted">No page list in this document&rsquo;s .content.</p>;
@@ -99,6 +115,7 @@ function Pages({ st }) {
       <thead>
         <tr>
           <th>#</th>
+          <th>Preview</th>
           <th>Page ID</th>
           <th>PDF page</th>
           <th>Template</th>
@@ -109,6 +126,7 @@ function Pages({ st }) {
         {st.pages.map((p) => (
           <tr key={p.id}>
             <td>{p.index + 1}</td>
+            <td><Thumbnail id={st.id} page={p.index} /></td>
             <td><code>{p.id}</code></td>
             <td>{p.docPage >= 0 ? p.docPage + 1 : ""}</td>
             <td>{p.template}</td>

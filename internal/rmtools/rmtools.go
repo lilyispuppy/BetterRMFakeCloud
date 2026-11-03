@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path"
 	"regexp"
 	"sort"
 	"strconv"
@@ -381,14 +382,9 @@ func (s *Service) Stat(uid, target string) (*Stat, error) {
 	if err != nil {
 		return nil, err
 	}
-	d, ok := idx.byID[target]
-	if !ok || strings.HasPrefix(target, "/") {
-		if d, err = idx.resolve(target); err != nil {
-			return nil, err
-		}
-	}
-	if d == nil {
-		return nil, ErrNotFound
+	d, err := idx.lookup(target)
+	if err != nil {
+		return nil, err
 	}
 
 	st := &Stat{
@@ -416,6 +412,52 @@ func (s *Service) Stat(uid, target string) (*Stat, error) {
 		st.Pages = c.PageList()
 	}
 	return st, nil
+}
+
+// lookup finds an entry by id or by path
+func (i *index) lookup(target string) (*models.HashDoc, error) {
+	d, ok := i.byID[target]
+	if !ok || strings.HasPrefix(target, "/") {
+		var err error
+		if d, err = i.resolve(target); err != nil {
+			return nil, err
+		}
+	}
+	if d == nil {
+		return nil, ErrNotFound
+	}
+	return d, nil
+}
+
+// PageData returns the .rm file of one page (0 based, in reading order).
+// It is nil, without an error, for a page that was never drawn on.
+func (s *Service) PageData(uid, target string, page int) ([]byte, error) {
+	idx, err := s.index(uid)
+	if err != nil {
+		return nil, err
+	}
+	d, err := idx.lookup(target)
+	if err != nil {
+		return nil, err
+	}
+	if d.CollectionType == common.CollectionType {
+		return nil, ErrNotFound
+	}
+	c := s.contentFor(uid, d)
+	if c == nil {
+		return nil, ErrNotFound
+	}
+	pages := c.PageList()
+	if page < 0 || page >= len(pages) {
+		return nil, ErrNotFound
+	}
+	want := pages[page].ID + ".rm"
+	for _, f := range d.Files {
+		if path.Base(f.EntryName) == want {
+			return s.readBlob(uid, f.Hash)
+		}
+	}
+	return nil, nil
 }
 
 // Info summarises the user's tree

@@ -15,15 +15,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type fakeRMSource struct{ tree *models.HashTree }
+type fakeRMSource struct {
+	tree  *models.HashTree
+	blobs map[string]string
+}
+
+const v6Page = "reMarkable .lines file, version=6          "
 
 func (f *fakeRMSource) Tree(uid string) (*models.HashTree, error) { return f.tree, nil }
 func (f *fakeRMSource) Blob(uid, hash string) (io.ReadCloser, error) {
-	blobs := map[string]string{
-		"content-d1": `{"fileType":"notebook","tags":[{"name":"work","timestamp":1}]}`,
-		"meta-d1":    `{"visibleName":"Notes"}`,
-	}
-	if b, ok := blobs[hash]; ok {
+	if b, ok := f.blobs[hash]; ok {
 		return io.NopCloser(strings.NewReader(b)), nil
 	}
 	return nil, errors.New("missing")
@@ -41,23 +42,39 @@ func rmDoc(id, name, parent string, t common.EntryType, pinned bool) *models.Has
 }
 
 func rmRouter(version common.SyncVersion, uid string) (*gin.Engine, *ReactAppWrapper) {
+	r, app, _ := rmRouterSrc(version, uid)
+	return r, app
+}
+
+func rmRouterSrc(version common.SyncVersion, uid string) (*gin.Engine, *ReactAppWrapper, *fakeRMSource) {
 	app := newTestApp(
 		&model.User{ID: "dev", Dev: true},
 		&model.User{ID: "plain"},
 	)
-	app.rm = rmtools.New(&fakeRMSource{tree: &models.HashTree{
-		Hash: "roothash", Generation: 3, SchemaVersion: "4",
-		Docs: []*models.HashDoc{
-			rmDoc("f1", "Work", "", common.CollectionType, false),
-			rmDoc("d1", "Notes", "f1", common.DocumentType, true),
+	d1 := rmDoc("d1", "Notes", "f1", common.DocumentType, true)
+	d1.Files = append(d1.Files, &models.HashEntry{EntryName: "d1/p1.rm", Hash: "rm-p1", Size: 5})
+	src := &fakeRMSource{
+		tree: &models.HashTree{
+			Hash: "roothash", Generation: 3, SchemaVersion: "4",
+			Docs: []*models.HashDoc{
+				rmDoc("f1", "Work", "", common.CollectionType, false),
+				d1,
+			},
 		},
-	}})
+		blobs: map[string]string{
+			"content-d1": `{"fileType":"notebook","tags":[{"name":"work","timestamp":1}],
+				"cPages":{"pages":[{"id":"p1","idx":{"value":"a"}},{"id":"p2","idx":{"value":"b"}}]}}`,
+			"meta-d1": `{"visibleName":"Notes"}`,
+			"rm-p1":   v6Page + "ink",
+		},
+	}
+	app.rm = rmtools.New(src)
 	r := gin.New()
 	r.Use(asUser(uid, false), func(c *gin.Context) {
 		c.Set(backendVersionKey, version)
 	})
 	app.registerRMRoutes(r.Group("/rm"))
-	return r, app
+	return r, app, src
 }
 
 func getJSON(t *testing.T, r http.Handler, url string, out any) int {
@@ -95,7 +112,7 @@ func TestRMLsMissingPathIs404(t *testing.T) {
 
 func TestRMToolsNeedSync15(t *testing.T) {
 	r, _ := rmRouter(common.Sync10, "plain")
-	for _, url := range []string{"/rm/ls", "/rm/tree", "/rm/find", "/rm/stat?path=/", "/rm/info"} {
+	for _, url := range []string{"/rm/ls", "/rm/tree", "/rm/find", "/rm/stat?path=/", "/rm/info", "/rm/page?id=d1&page=0"} {
 		w := do(r, http.MethodGet, url, nil)
 		if w.Code != http.StatusNotImplemented || !strings.Contains(w.Body.String(), "1.5") {
 			t.Errorf("%s: %d %s", url, w.Code, w.Body.String())
@@ -155,7 +172,7 @@ func TestRMStatHidesInternalsFromNonDevUsers(t *testing.T) {
 			t.Fatalf("file hash leaked: %+v", f)
 		}
 	}
-	if len(st.Files) != 2 || st.Files[0].Name == "" || st.TotalSize != 30 {
+	if len(st.Files) != 3 || st.Files[0].Name == "" || st.TotalSize != 35 {
 		t.Fatalf("files should still be listed: %+v", st.Files)
 	}
 }
@@ -202,5 +219,76 @@ func TestRMTree(t *testing.T) {
 	}
 	if len(root.Children) != 2 { // Work, trash
 		t.Fatalf("root: %+v", root)
+	}
+}
+
+func stubRenderer(app *ReactAppWrapper, calls *int, err error) {
+	app.renderPage = func(raw []byte) ([]byte, error) {
+		*calls++
+		if err != nil {
+			return nil, err
+		}
+		return []byte("<svg>stub:" + string(raw[len(v6Page):]) + "</svg>"), nil
+	}
+}
+
+func TestRMPageRendersAV6PageAsSVG(t *testing.T) {
+	r, app := rmRouter(common.Sync15, "plain")
+	calls := 0
+	stubRenderer(app, &calls, nil)
+	w := do(r, http.MethodGet, "/rm/page?id=d1&page=0", nil)
+	if w.Code != 200 || w.Body.String() != "<svg>stub:ink</svg>" {
+		t.Fatalf("%d %q", w.Code, w.Body.String())
+	}
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "image/svg+xml") {
+		t.Fatalf("content type %q", ct)
+	}
+	// by path as well
+	if w := do(r, http.MethodGet, "/rm/page?path=/Work/Notes&page=0", nil); w.Code != 200 {
+		t.Fatalf("by path: %d", w.Code)
+	}
+}
+
+func TestRMPageOfABlankPageNeedsNoRenderer(t *testing.T) {
+	r, app := rmRouter(common.Sync15, "plain")
+	calls := 0
+	stubRenderer(app, &calls, nil)
+	w := do(r, http.MethodGet, "/rm/page?id=d1&page=1", nil)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "<svg") || calls != 0 {
+		t.Fatalf("%d %q calls=%d", w.Code, w.Body.String(), calls)
+	}
+}
+
+func TestRMPageErrors(t *testing.T) {
+	r, app, src := rmRouterSrc(common.Sync15, "plain")
+	calls := 0
+	stubRenderer(app, &calls, nil)
+
+	for url, want := range map[string]int{
+		"/rm/page?id=d1&page=9":   http.StatusNotFound,
+		"/rm/page?id=nope&page=0": http.StatusNotFound,
+		"/rm/page?id=d1&page=x":   http.StatusBadRequest,
+		"/rm/page?id=d1":          http.StatusBadRequest,
+		"/rm/page?page=0":         http.StatusBadRequest,
+	} {
+		if w := do(r, http.MethodGet, url, nil); w.Code != want {
+			t.Errorf("%s: got %d want %d", url, w.Code, want)
+		}
+	}
+
+	// pages from before firmware 3 are not drawn by the v6 renderer
+	src.blobs["rm-p1"] = "reMarkable .lines file, version=5          ink"
+	if w := do(r, http.MethodGet, "/rm/page?id=d1&page=0", nil); w.Code != http.StatusUnsupportedMediaType {
+		t.Errorf("v5 page: got %d", w.Code)
+	}
+}
+
+func TestRMPageRendererFailureIsAJSONError(t *testing.T) {
+	r, app := rmRouter(common.Sync15, "plain")
+	calls := 0
+	stubRenderer(app, &calls, errors.New("cairo exploded"))
+	w := do(r, http.MethodGet, "/rm/page?id=d1&page=0", nil)
+	if w.Code != http.StatusInternalServerError || !strings.Contains(w.Body.String(), `"error"`) {
+		t.Fatalf("%d %q", w.Code, w.Body.String())
 	}
 }

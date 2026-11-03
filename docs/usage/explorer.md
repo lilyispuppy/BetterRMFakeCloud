@@ -53,6 +53,26 @@ The **Tools** tab mirrors the rmapi commands.
 `find` skips the trash unless the search starts inside it, and several tags
 match documents that have any one of them.
 
+## Page previews
+
+The Pages tab of a document shows a thumbnail of every page, drawn from the
+`.rm` file on the server. Click one to open the SVG at full size.
+
+## Rendering
+
+Notebooks written by firmware 3.x (`.rm` v6) are drawn with
+[rmc-go](https://github.com/joagonca/rmc-go), both for these previews and for
+the PDF export of a notebook in the web UI. Strokes, highlights, text, colours
+and pen types are drawn. What to know:
+
+- Pages are sized to their content, so pages of one export can differ in size.
+- Page templates (lines, grids) are not drawn.
+- A last page with nothing on it can be left out of a PDF export.
+- On a PDF or ePub document, only strokes and highlights are drawn over the
+  pages; typed text is not.
+- Pages from before firmware 3 (v3 and v5) are exported as before, but have no
+  preview.
+
 ## HTTP API
 
 The tools are also available on the web API, for the signed in user only:
@@ -64,6 +84,10 @@ The tools are also available on the web API, for the signed in user only:
 | `GET /ui/api/rm/ls?path=/Folder`           | `ls --json`      |
 | `GET /ui/api/rm/find?path=&pattern=&tag=&starred=` | `find`   |
 | `GET /ui/api/rm/stat?path=/Folder/Doc` or `?id=<id>` | `stat` |
+| `GET /ui/api/rm/page?id=<id>&page=<n>`     | an SVG of one page (`n` counts from 0) |
+
+`page` answers `404` for a page that does not exist, `415` for a page written
+before firmware 3, and returns an empty page for one that was never drawn on.
 
 `ls` and `find` return the same fields as `rmapi ls --json` (`id`, `name`,
 `type`, `version`, `modifiedClient`, `currentPage`, `parent`, `tags`, `starred`)
@@ -72,8 +96,9 @@ and the raw JSON are only returned to Dev users.
 
 ## Limits
 
-- Per-page stroke data is not read. The `.rm` files written by firmware 3.x
-  use the v6 format, which rmapi cannot parse either.
+- Page previews and notebook exports need a build with Cairo (the Docker image
+  has it; see [Installing from source](../install/source.md)). Without it the
+  preview answers `500`.
 - Names are not unique on a tablet. If two entries in a folder share a name, a
   path finds the first one; use `stat?id=` to be exact.
 

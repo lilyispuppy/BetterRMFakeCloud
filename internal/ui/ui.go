@@ -17,6 +17,7 @@ import (
 	"github.com/ddvk/rmfakecloud/internal/rmtools"
 	"github.com/ddvk/rmfakecloud/internal/screenshare"
 	"github.com/ddvk/rmfakecloud/internal/storage"
+	"github.com/ddvk/rmfakecloud/internal/storage/exporter"
 	"github.com/ddvk/rmfakecloud/internal/storage/models"
 	"github.com/ddvk/rmfakecloud/internal/ui/viewmodel"
 	webui "github.com/ddvk/rmfakecloud/ui"
@@ -85,6 +86,8 @@ type ReactAppWrapper struct {
 	devices       deviceLister
 	online        onlineChecker
 	rm            *rmtools.Service
+	// renderPage draws a v6 page as an SVG
+	renderPage func(raw []byte) ([]byte, error)
 }
 
 type deviceLister interface {
@@ -142,6 +145,9 @@ func New(cfg *config.Config,
 		devices:     deviceStore,
 		online:      h,
 		rm:          rmtools.New(rmSource{blobs: blobHandler}),
+		renderPage: func(raw []byte) ([]byte, error) {
+			return exporter.V6.RenderSVG(raw)
+		},
 	}
 	return &staticWrapper
 }
