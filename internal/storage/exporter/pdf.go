@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 
 	"github.com/juruen/rmapi/encoding/rm"
 	"github.com/sirupsen/logrus"
@@ -34,8 +35,32 @@ type PdfGeneratorOptions struct {
 	AnnotationsOnly bool //export the annotations without the background/pdf
 }
 
-func normalized(p1 rm.Point, ratioX float64) (float64, float64) {
-	return float64(p1.X) * ratioX, float64(p1.Y) * ratioX
+func normalized(p1 rm.Point, scale, xShift float64) (float64, float64) {
+	return float64(p1.X)*scale + xShift, float64(p1.Y) * scale
+}
+
+// pageScale converts device pixels to PDF points. Strokes of v6 pages on a
+// PDF are at the device's 226 DPI and centred on the page (the v6 parser adds
+// half the device width to x), so they need a shift as well.
+func pageScale(v6Pdf bool, width, height float64) (scale, xShift float64) {
+	if v6Pdf {
+		scale = 72.0 / 226.0
+		xShift = width/2 - float64(rm.Width)/2*scale
+		return
+	}
+	if height/width < 1.33 {
+		return width / DeviceWidth, 0
+	}
+	return height / DeviceHeight, 0
+}
+
+// backgroundPageNumber is the 1 based page of the source PDF for a page's
+// DocPage; 0 means there is none and the page is blank
+func backgroundPageNumber(docPage int) int {
+	if docPage < 0 {
+		return 0
+	}
+	return docPage + 1
 }
 
 func (p *PdfGenerator) Generate(zip *MyArchive, output io.Writer, options PdfGeneratorOptions) (err error) {
@@ -67,37 +92,32 @@ func (p *PdfGenerator) Generate(zip *MyArchive, output io.Writer, options PdfGen
 		c.SetOutlineTree(outlines)
 	}
 
-	for i, pageAnnotations := range zip.Pages {
+	for _, pageAnnotations := range zip.Pages {
 		hasContent := pageAnnotations.Data != nil
 
-		// do not add a page when there are no annotations
-		if !p.options.AllPages && !hasContent {
+		// For PDFs, always include all pages so the full document is
+		// preserved with annotations overlaid. For notebooks (no source
+		// PDF), skip blank pages unless AllPages is set.
+		if !hasContent && !p.options.AllPages && p.pdfReader == nil {
 			continue
 		}
+		//1 based, redirected page
+		pageNum := backgroundPageNumber(pageAnnotations.DocPage)
 
-		page, err := p.addBackgroundPage(c, i+1)
+		page, err := p.addBackgroundPage(c, pageNum)
 		if err != nil {
 			return err
 		}
 
-		ratio := c.Height() / c.Width()
-
-		var scale float64
-		if ratio < 1.33 {
-			scale = c.Width() / DeviceWidth
-		} else {
-			scale = c.Height() / DeviceHeight
-		}
 		if page == nil {
-			logrus.Fatal("page is null")
-		}
-
-		if err != nil {
-			return err
+			return errors.New("page is null")
 		}
 		if !hasContent {
 			continue
 		}
+
+		isV6Pdf := pageAnnotations.Data.Version == rm.V6 && pageAnnotations.DocPage >= 0 && p.pdfReader != nil
+		scale, xShift := pageScale(isV6Pdf, c.Width(), c.Height())
 
 		contentCreator := contentstream.NewContentCreator()
 		contentCreator.Add_q()
@@ -107,20 +127,21 @@ func (p *PdfGenerator) Generate(zip *MyArchive, output io.Writer, options PdfGen
 				if len(line.Points) < 1 {
 					continue
 				}
-				if line.BrushType == rm.Eraser || line.BrushType == rm.EraseArea {
+				if line.BrushType == rm.Eraser {
 					continue
 				}
 
 				if line.BrushType == rm.HighlighterV5 {
 					last := len(line.Points) - 1
-					x1, y1 := normalized(line.Points[0], scale)
-					x2, _ := normalized(line.Points[last], scale)
+					x1, y1 := normalized(line.Points[0], scale, xShift)
+					x2, _ := normalized(line.Points[last], scale, xShift)
 					// make horizontal lines only, use y1
 					width := scale * 30
 					y1 += width / 2
 
 					lineDef := annotator.LineAnnotationDef{X1: x1 - 1, Y1: c.Height() - y1, X2: x2, Y2: c.Height() - y1}
-					lineDef.LineColor = pdf.NewPdfColorDeviceRGB(1.0, 1.0, 0.0) //yellow
+					r, g, b := highlightRGB(line.BrushColor, nil)
+					lineDef.LineColor = pdf.NewPdfColorDeviceRGB(r, g, b)
 					lineDef.Opacity = 0.5
 					lineDef.LineWidth = width
 					ann, err := annotator.CreateLineAnnotation(lineDef)
@@ -131,11 +152,25 @@ func (p *PdfGenerator) Generate(zip *MyArchive, output io.Writer, options PdfGen
 				} else {
 					path := draw.NewPath()
 					for i := 0; i < len(line.Points); i++ {
-						x1, y1 := normalized(line.Points[i], scale)
+						x1, y1 := normalized(line.Points[i], scale, xShift)
 						path = path.AppendPoint(draw.NewPoint(x1, c.Height()-y1))
 					}
 
-					contentCreator.Add_w(float64(line.BrushSize / 10))
+					var lineWidth float64
+					if pageAnnotations.Data.Version == rm.V6 {
+						// v6: per-point Width is in device pixels; average and scale to PDF points.
+						var totalW float64
+						for _, pt := range line.Points {
+							totalW += float64(pt.Width)
+						}
+						lineWidth = totalW / float64(len(line.Points)) * scale
+					} else {
+						lineWidth = float64(line.BrushSize*6.0 - 10.8)
+					}
+					if lineWidth < 0.1 {
+						lineWidth = 0.1
+					}
+					contentCreator.Add_w(lineWidth)
 
 					switch line.BrushColor {
 					case rm.Black:
@@ -144,6 +179,10 @@ func (p *PdfGenerator) Generate(zip *MyArchive, output io.Writer, options PdfGen
 						contentCreator.Add_rg(0.0, 0.0, 0.0)
 					case rm.Grey:
 						contentCreator.Add_rg(0.8, 0.8, 0.8)
+					case rm.Blue:
+						contentCreator.Add_rg(0.0, 0.38, 0.8)
+					case rm.Red:
+						contentCreator.Add_rg(0.85, 0.03, 0.03)
 					}
 
 					//TODO: use bezier
@@ -153,6 +192,32 @@ func (p *PdfGenerator) Generate(zip *MyArchive, output io.Writer, options PdfGen
 				}
 			}
 		}
+		for _, hl := range pageAnnotations.Data.Highlights {
+			for _, rect := range hl.Rects {
+				// Highlight rects don't have the +Width/2 X offset that strokes do;
+				// for v6 PDF pages, x=0 is at the horizontal center of the page.
+				hlXOff := xShift
+				if isV6Pdf {
+					hlXOff = c.Width() / 2
+				}
+				x1 := rect.X*scale + hlXOff
+				y1 := c.Height() - rect.Y*scale
+				x2 := (rect.X+rect.W)*scale + hlXOff
+				y2 := c.Height() - (rect.Y+rect.H)*scale
+
+				lineDef := annotator.LineAnnotationDef{X1: x1, Y1: y2, X2: x2, Y2: y1}
+				r, g, b := highlightRGB(hl.Color, hl.ColorRGBA)
+				lineDef.LineColor = pdf.NewPdfColorDeviceRGB(r, g, b)
+				lineDef.Opacity = 0.3
+				lineDef.LineWidth = math.Abs(y1 - y2)
+				ann, err := annotator.CreateLineAnnotation(lineDef)
+				if err != nil {
+					continue
+				}
+				page.AddAnnotation(ann)
+			}
+		}
+
 		contentCreator.Add_Q()
 		drawingOperations := contentCreator.Operations().String()
 		pageContentStreams, err := page.GetAllContentStreams()
@@ -202,7 +267,8 @@ func (p *PdfGenerator) initBackgroundPages(r io.ReadSeeker) error {
 func (p *PdfGenerator) addBackgroundPage(c *creator.Creator, pageNum int) (*pdf.PdfPage, error) {
 	var page *pdf.PdfPage
 
-	if !p.template && !p.options.AnnotationsOnly {
+	// if the page number is 0 the page is empty
+	if !p.template && !p.options.AnnotationsOnly && pageNum > 0 {
 		tmpPage, err := p.pdfReader.GetPage(pageNum)
 		if err != nil {
 			return nil, err
@@ -234,4 +300,28 @@ func (p *PdfGenerator) addBackgroundPage(c *creator.Creator, pageNum int) (*pdf.
 		})
 	}
 	return page, nil
+}
+
+// highlightRGB resolves a v6 highlight color to RGB components in [0,1].
+// rgba (when non-nil) overrides the enum and carries an explicit color from
+// firmware 3.6+. Falls back to yellow for unknown codes.
+func highlightRGB(c rm.BrushColor, rgba *[4]uint8) (r, g, b float64) {
+	if rgba != nil {
+		return float64(rgba[0]) / 255, float64(rgba[1]) / 255, float64(rgba[2]) / 255
+	}
+	switch c {
+	case rm.HighlightYellow, rm.Yellow2:
+		return 1.0, 0.93, 0.0
+	case rm.HighlightGreen, rm.Green2:
+		return 0.36, 0.86, 0.36
+	case rm.HighlightPink, rm.Magenta:
+		return 1.0, 0.45, 0.75
+	case rm.Blue, rm.Cyan:
+		return 0.40, 0.75, 1.0
+	case rm.Red:
+		return 1.0, 0.45, 0.45
+	case rm.Black, rm.Grey, rm.GreyOverlap:
+		return 0.7, 0.7, 0.7
+	}
+	return 1.0, 0.93, 0.0
 }
