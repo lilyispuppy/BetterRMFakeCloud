@@ -46,7 +46,15 @@ func (rmcRenderer) RenderSVG(page []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("rendering v6 page: %w", err)
 	}
-	return svg, nil
+	return roundJoins(svg), nil
+}
+
+// roundJoins makes the corners of every stroke round. rmc-go sets a round line
+// cap on its polylines but not the join, so SVG viewers use their default, a
+// mitre, which draws long spikes at sharp turns. (Its PDF output is already
+// round.)
+func roundJoins(svg []byte) []byte {
+	return bytes.ReplaceAll(svg, []byte("<polyline "), []byte(`<polyline stroke-linejoin="round" `))
 }
 
 // IsV6Notebook is true for a document of v6 pages that has no PDF or epub
