@@ -104,7 +104,7 @@ func (p *PdfGenerator) Generate(zip *MyArchive, output io.Writer, options PdfGen
 		//1 based, redirected page
 		pageNum := backgroundPageNumber(pageAnnotations.DocPage)
 
-		page, err := p.addBackgroundPage(c, pageNum)
+		page, geo, err := p.addBackgroundPage(c, pageNum)
 		if err != nil {
 			return err
 		}
@@ -117,7 +117,7 @@ func (p *PdfGenerator) Generate(zip *MyArchive, output io.Writer, options PdfGen
 		}
 
 		isV6Pdf := pageAnnotations.Data.Version == rm.V6 && pageAnnotations.DocPage >= 0 && p.pdfReader != nil
-		scale, xShift := pageScale(isV6Pdf, c.Width(), c.Height())
+		scale, xShift := pageScale(isV6Pdf, geo.Width, geo.Height)
 
 		contentCreator := contentstream.NewContentCreator()
 		contentCreator.Add_q()
@@ -139,7 +139,9 @@ func (p *PdfGenerator) Generate(zip *MyArchive, output io.Writer, options PdfGen
 					width := scale * 30
 					y1 += width / 2
 
-					lineDef := annotator.LineAnnotationDef{X1: x1 - 1, Y1: c.Height() - y1, X2: x2, Y2: c.Height() - y1}
+					ux1, uy1 := geo.toUser(x1-1, y1)
+					ux2, uy2 := geo.toUser(x2, y1)
+					lineDef := annotator.LineAnnotationDef{X1: ux1, Y1: uy1, X2: ux2, Y2: uy2}
 					r, g, b := highlightRGB(line.BrushColor, nil)
 					lineDef.LineColor = pdf.NewPdfColorDeviceRGB(r, g, b)
 					lineDef.Opacity = 0.5
@@ -153,7 +155,8 @@ func (p *PdfGenerator) Generate(zip *MyArchive, output io.Writer, options PdfGen
 					path := draw.NewPath()
 					for i := 0; i < len(line.Points); i++ {
 						x1, y1 := normalized(line.Points[i], scale, xShift)
-						path = path.AppendPoint(draw.NewPoint(x1, c.Height()-y1))
+						ux, uy := geo.toUser(x1, y1)
+						path = path.AppendPoint(draw.NewPoint(ux, uy))
 					}
 
 					var lineWidth float64
@@ -202,18 +205,20 @@ func (p *PdfGenerator) Generate(zip *MyArchive, output io.Writer, options PdfGen
 				// for v6 PDF pages, x=0 is at the horizontal center of the page.
 				hlXOff := xShift
 				if isV6Pdf {
-					hlXOff = c.Width() / 2
+					hlXOff = geo.Width / 2
 				}
-				x1 := rect.X*scale + hlXOff
-				y1 := c.Height() - rect.Y*scale
-				x2 := (rect.X+rect.W)*scale + hlXOff
-				y2 := c.Height() - (rect.Y+rect.H)*scale
+				u1 := rect.X*scale + hlXOff
+				u2 := (rect.X+rect.W)*scale + hlXOff
+				vTop := rect.Y * scale
+				vBottom := (rect.Y + rect.H) * scale
+				x1, y2 := geo.toUser(u1, vBottom)
+				x2, y1 := geo.toUser(u2, vTop)
 
 				lineDef := annotator.LineAnnotationDef{X1: x1, Y1: y2, X2: x2, Y2: y1}
 				r, g, b := highlightRGB(hl.Color, hl.ColorRGBA)
 				lineDef.LineColor = pdf.NewPdfColorDeviceRGB(r, g, b)
 				lineDef.Opacity = 0.3
-				lineDef.LineWidth = math.Abs(y1 - y2)
+				lineDef.LineWidth = math.Abs(vBottom - vTop)
 				ann, err := annotator.CreateLineAnnotation(lineDef)
 				if err != nil {
 					continue
@@ -268,29 +273,38 @@ func (p *PdfGenerator) initBackgroundPages(r io.ReadSeeker) error {
 	return nil
 }
 
-func (p *PdfGenerator) addBackgroundPage(c *creator.Creator, pageNum int) (*pdf.PdfPage, error) {
+func (p *PdfGenerator) addBackgroundPage(c *creator.Creator, pageNum int) (*pdf.PdfPage, pageGeometry, error) {
 	var page *pdf.PdfPage
+	var geo pageGeometry
 
 	// if the page number is 0 the page is empty
 	if !p.template && !p.options.AnnotationsOnly && pageNum > 0 {
 		tmpPage, err := p.pdfReader.GetPage(pageNum)
 		if err != nil {
-			return nil, err
+			return nil, geo, err
 		}
 		mbox, err := tmpPage.GetMediaBox()
 		if err != nil {
-			return nil, err
+			return nil, geo, err
 		}
 
-		// TODO: adjust the page if cropped
-		pageHeight := mbox.Ury - mbox.Lly
-		pageWidth := mbox.Urx - mbox.Llx
+		var crop *box
+		if cb := tmpPage.CropBox; cb != nil {
+			crop = &box{cb.Llx, cb.Lly, cb.Urx, cb.Ury}
+		}
+		rotate := 0
+		if tmpPage.Rotate != nil {
+			rotate = int(*tmpPage.Rotate)
+		}
+		geo = newPageGeometry(box{mbox.Llx, mbox.Lly, mbox.Urx, mbox.Ury}, crop, rotate)
+
 		// use the pdf's page size
-		c.SetPageSize(creator.PageSize{pageWidth, pageHeight})
+		c.SetPageSize(creator.PageSize{mbox.Urx - mbox.Llx, mbox.Ury - mbox.Lly})
 		c.AddPage(tmpPage)
 		page = tmpPage
 	} else {
 		page = c.NewPage()
+		geo = newPageGeometry(box{0, 0, c.Width(), c.Height()}, nil, 0)
 	}
 
 	if p.options.AddPageNumbers {
@@ -303,7 +317,7 @@ func (p *PdfGenerator) addBackgroundPage(c *creator.Creator, pageNum int) (*pdf.
 			block.Draw(p)
 		})
 	}
-	return page, nil
+	return page, geo, nil
 }
 
 // highlightRGB resolves a v6 highlight color to RGB components in [0,1].
