@@ -122,3 +122,22 @@ func TestPDFPageOutOfRangeIsAnErrorNotAPanic(t *testing.T) {
 		t.Fatal("expected an error")
 	}
 }
+
+func TestStrokesOnPDFPagesHaveRoundJoinsAndCaps(t *testing.T) {
+	a := a4Archive(t, archive.Page{Data: v6Stroke(), DocPage: 0})
+	r, _, err := generated(t, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, _ := r.GetPage(1)
+	streams, err := page.GetAllContentStreams()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// the default mitre join draws long spikes at sharp turns
+	for _, op := range []string{"1 j", "1 J"} {
+		if !strings.Contains(streams, op) {
+			t.Errorf("missing %q in %q", op, streams)
+		}
+	}
+}

@@ -171,6 +171,10 @@ func (p *PdfGenerator) Generate(zip *MyArchive, output io.Writer, options PdfGen
 						lineWidth = 0.1
 					}
 					contentCreator.Add_w(lineWidth)
+					// round joins and caps; the PDF default is a mitre join,
+					// which draws long spikes at sharp turns
+					contentCreator.AddOperand(contentstream.ContentStreamOperation{Operand: "j", Params: []core.PdfObject{core.MakeInteger(1)}})
+					contentCreator.AddOperand(contentstream.ContentStreamOperation{Operand: "J", Params: []core.PdfObject{core.MakeInteger(1)}})
 
 					switch line.BrushColor {
 					case rm.Black:
