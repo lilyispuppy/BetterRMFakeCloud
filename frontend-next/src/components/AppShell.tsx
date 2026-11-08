@@ -30,8 +30,8 @@ const primary: { to: string; label: string; icon: ReactNode }[] = [
 export function AppShell() {
   const { needRefresh, update, dismiss } = useServiceWorkerUpdate();
   return (
-    <div className="flex h-full flex-col md:flex-row">
-      <nav aria-label="Primary" className="hidden w-56 shrink-0 flex-col gap-1 border-r border-line bg-raised p-3 md:flex">
+    <div className="flex h-full flex-col pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)] md:flex-row">
+      <nav aria-label="Primary" className="hidden w-56 shrink-0 flex-col gap-1 border-r border-line bg-raised p-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] md:flex">
         <p className="px-3 py-3 text-lg font-semibold">rmfakecloud</p>
         {primary.map((p) => (
           <NavLink
@@ -49,7 +49,7 @@ export function AppShell() {
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <OfflineBanner />
-        <header className="flex items-center justify-between border-b border-line px-4 py-2 md:justify-end">
+        <header className="flex items-center pt-[calc(env(safe-area-inset-top)+0.5rem)] justify-between border-b border-line px-4 py-2 md:justify-end">
           <p className="text-lg font-semibold md:hidden">rmfakecloud</p>
           <AccountMenu />
         </header>
@@ -57,7 +57,7 @@ export function AppShell() {
           <Outlet />
         </main>
         <UpdateToast needRefresh={needRefresh} onUpdate={update} onDismiss={dismiss} />
-        <nav aria-label="Primary" className="grid grid-cols-2 border-t border-line bg-raised md:hidden">
+        <nav aria-label="Primary" className="grid grid-cols-2 border-t border-line bg-raised pb-[env(safe-area-inset-bottom)] md:hidden">
           {primary.map((p) => (
             <NavLink
               key={p.to}

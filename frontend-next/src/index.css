@@ -27,6 +27,6 @@ body {
   background: var(--color-surface);
   color: var(--color-ink);
   font-family: var(--font-sans);
-  /* keep content clear of notches and home indicators */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  /* the app shell keeps its own bars clear of notches and the home indicator,
+     so each bar's background reaches the edge of the screen */
 }
