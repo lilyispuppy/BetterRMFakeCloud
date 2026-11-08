@@ -1,4 +1,4 @@
-import { useParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 import { api } from "../../api/client";
 import type { DocumentTree } from "../../api/types";
 import { Button, ErrorNote, Loading } from "../../components/ui";
@@ -7,7 +7,33 @@ import { DocumentView } from "./DocumentView";
 import { FolderView } from "./FolderView";
 import { locate } from "./tree";
 
+function sharedMessage(value: string | null): string | null {
+  if (value === null) return null;
+  if (value === "failed") return "The shared files could not be added. Try again.";
+  if (value === "none") return "No files were shared.";
+  const count = Number(value);
+  if (!Number.isInteger(count) || count < 1) return null;
+  return count === 1 ? "1 file added to your library." : `${count} files added to your library.`;
+}
+
+/** Files can be shared to the app from other apps; say what became of them. */
+function SharedNotice() {
+  const [params] = useSearchParams();
+  const message = sharedMessage(params.get("shared"));
+  if (!message) return null;
+  return <p className="mb-4 rounded-card border border-line bg-raised px-4 py-3 text-sm">{message}</p>;
+}
+
 export function LibraryPage() {
+  return (
+    <>
+      <SharedNotice />
+      <LibraryContents />
+    </>
+  );
+}
+
+function LibraryContents() {
   const { itemId } = useParams();
   const documents = useResource("documents", (signal) => api<DocumentTree>("documents", { signal }));
 

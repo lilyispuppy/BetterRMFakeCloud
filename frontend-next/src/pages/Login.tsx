@@ -6,7 +6,10 @@ import { Button, ErrorNote, Field } from "../components/ui";
 export function LoginPage() {
   const { user, signIn } = useAuth();
   const location = useLocation();
-  const from = (location.state as { from?: string } | null)?.from ?? "/";
+  const requested = (location.state as { from?: string } | null)?.from ?? "/";
+  // files shared to the app before signing in were not added; say so, and do not repeat the notice afterwards
+  const sharedWhileSignedOut = requested.includes("shared=signin");
+  const from = sharedWhileSignedOut ? "/library" : requested;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<Error | null>(null);
@@ -29,6 +32,7 @@ export function LoginPage() {
   return (
     <main className="mx-auto flex min-h-full max-w-sm flex-col justify-center gap-6 p-6">
       <h1 className="text-2xl font-semibold">Sign in</h1>
+      {sharedWhileSignedOut && <p className="text-sm text-muted">Sign in to add the files you shared, then share them again.</p>}
       <form onSubmit={submit} className="flex flex-col gap-4">
         <Field id="email" label="Email" type="text" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
         <Field

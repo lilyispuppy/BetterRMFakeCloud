@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
 import { NavLink, Outlet } from "react-router";
+import { OfflineBanner } from "../pwa/OfflineBanner";
+import { UpdateToast } from "../pwa/UpdateToast";
+import { useServiceWorkerUpdate } from "../pwa/useUpdate";
 import { AccountMenu } from "./AccountMenu";
 
 function LibraryIcon() {
@@ -25,6 +28,7 @@ const primary: { to: string; label: string; icon: ReactNode }[] = [
 
 /** Sidebar on desktop, bottom tab bar on phones; account menu at the top right. */
 export function AppShell() {
+  const { needRefresh, update, dismiss } = useServiceWorkerUpdate();
   return (
     <div className="flex h-full flex-col md:flex-row">
       <nav aria-label="Primary" className="hidden w-56 shrink-0 flex-col gap-1 border-r border-line bg-raised p-3 md:flex">
@@ -44,6 +48,7 @@ export function AppShell() {
       </nav>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <OfflineBanner />
         <header className="flex items-center justify-between border-b border-line px-4 py-2 md:justify-end">
           <p className="text-lg font-semibold md:hidden">rmfakecloud</p>
           <AccountMenu />
@@ -51,6 +56,7 @@ export function AppShell() {
         <main className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
           <Outlet />
         </main>
+        <UpdateToast needRefresh={needRefresh} onUpdate={update} onDismiss={dismiss} />
         <nav aria-label="Primary" className="grid grid-cols-2 border-t border-line bg-raised md:hidden">
           {primary.map((p) => (
             <NavLink

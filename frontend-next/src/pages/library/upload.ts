@@ -1,12 +1,5 @@
 import { ApiError, api } from "../../api/client";
-
-// the server drops files whose extension is not lower case
-function lowerExtension(file: File): File {
-  const parts = file.name.split(".");
-  if (parts.length < 2) return file;
-  parts.push((parts.pop() ?? "").toLowerCase());
-  return new File([file], parts.join("."), { type: file.type });
-}
+import { lowerExtension } from "../../lib/files";
 
 function body(parent: string, files: File[]): FormData {
   const form = new FormData();

@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useAuth } from "../auth/AuthContext";
+import { useInstallPrompt } from "../pwa/useInstallPrompt";
 
 const item =
   "flex min-h-11 w-full items-center px-4 text-left text-sm hover:bg-line/50 focus-visible:bg-line/50 focus-visible:outline-none";
 
 export function AccountMenu() {
   const { user, signOut } = useAuth();
+  const { canInstall, install } = useInstallPrompt();
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -55,6 +57,19 @@ export function AccountMenu() {
           <Link role="menuitem" to="/settings" className={item} onClick={() => setOpen(false)}>
             Settings
           </Link>
+          {canInstall && (
+            <button
+              role="menuitem"
+              type="button"
+              className={item}
+              onClick={() => {
+                setOpen(false);
+                void install();
+              }}
+            >
+              Install app
+            </button>
+          )}
           <a role="menuitem" href="/legacy/" className={item}>
             Legacy app
           </a>

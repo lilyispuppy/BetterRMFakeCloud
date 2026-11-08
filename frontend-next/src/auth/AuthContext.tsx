@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ApiError, api, onUnauthorised } from "../api/client";
+import { clearPrivateCaches } from "../pwa/privateCaches";
 import { clearSession, loadSession, parseToken, saveSession, type SessionUser } from "./session";
 
 interface Auth {
@@ -17,6 +18,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     onUnauthorised(() => {
       clearSession();
+      void clearPrivateCaches();
       setUser(null);
     });
     return () => onUnauthorised(null);
@@ -38,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     await api("logout").catch(() => undefined);
     clearSession();
+    await clearPrivateCaches();
     setUser(null);
   }, []);
 

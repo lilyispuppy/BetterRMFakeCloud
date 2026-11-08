@@ -4,5 +4,6 @@ import { afterEach } from "vitest";
 
 afterEach(() => {
   cleanup();
-  localStorage.clear();
+  // some tests run in a plain Node environment, without a browser
+  if (typeof localStorage !== "undefined") localStorage.clear();
 });
