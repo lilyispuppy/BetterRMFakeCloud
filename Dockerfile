@@ -11,7 +11,7 @@ WORKDIR /src
 COPY ui .
 RUN pnpm install && pnpm build
 
-# the new web app, served at /next; nothing is shared with the stage above
+# the new web app, served at the root of the site; nothing is shared with the stage above
 FROM --platform=$BUILDPLATFORM node:22 AS nextbuilder
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"

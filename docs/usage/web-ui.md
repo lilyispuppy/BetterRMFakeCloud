@@ -14,12 +14,31 @@ The session is shared, so signing in to one signs you in to the other.
 Old bookmarks such as `/documents` or `/devices` open the new app, which sends
 them to the matching page.
 
-## Status
+## The new app
 
-The new app is being built in phases, so for now some features are only in the
-legacy app. The primary navigation will be Library and Screen share. Settings
-(Devices, Profile, Integrations and the developer tools) will be in the account
-menu at the top right, which also links to the legacy app.
+The primary navigation is **Library** (browse, upload, preview and download
+documents; page previews, document information, file lists and search are part
+of it) and **Screen share**. **Settings** is in the account menu at the top
+right: Devices (with Connect), Profile, Integrations, Developer settings (Logs
+and Explorer, for developers) and Admin (for administrators). The same menu
+links to the legacy app.
+
+### Installing it and using it offline
+
+The new app is a progressive web app. Browsers only offer installation, and
+only run the service worker, on a secure origin: serve the site over HTTPS (or
+use `localhost`).
+
+- **Install**: use "Install app" in the account menu, or the browser's own
+  option (on iOS, Share, then Add to Home Screen).
+- **Offline**: the app itself opens without a connection, the last document list
+  and page previews already viewed are kept, and a banner says when you are
+  offline. Everything else, including sign in and any change, needs the server.
+- **Share to the app**: on Android and desktop Chromium, files shared to the
+  installed app are uploaded to the top level of the library.
+- **Updates**: a "new version available" prompt appears when the server has been
+  upgraded; choose Reload to switch to it.
+- Signing out removes the cached document list and page previews.
 
 ## How it is served
 
