@@ -74,6 +74,7 @@ func (app *ReactAppWrapper) RegisterRoutes(router *gin.Engine) {
 	auth.DELETE("documents/:docid", app.deleteDocument)
 	auth.PUT("documents", app.updateDocument)
 	auth.POST("folders", app.createFolder)
+	auth.GET("documents/:docid/thumbnail", app.getThumbnail)
 	auth.GET("documents/:docid/metadata", app.getDocumentMetadata)
 
 	// integrations

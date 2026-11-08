@@ -41,10 +41,12 @@ RUN go generate ./... && CGO_ENABLED=1 go build -tags cairo -ldflags "-s -w -X m
 FROM debian:bookworm-slim
 EXPOSE 3000
 
-# libcairo2 is needed to run; the fonts are used for typed text in notebooks
+# libcairo2 is needed to run; the fonts are used for typed text in notebooks;
+# poppler-utils draws the thumbnails of the library (without it the web app shows icons)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libcairo2 \
+    poppler-utils \
     fontconfig \
     fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*

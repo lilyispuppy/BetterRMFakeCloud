@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	iofs "io/fs"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/ddvk/rmfakecloud/internal/app/hub"
@@ -19,6 +20,7 @@ import (
 	"github.com/ddvk/rmfakecloud/internal/storage"
 	"github.com/ddvk/rmfakecloud/internal/storage/exporter"
 	"github.com/ddvk/rmfakecloud/internal/storage/models"
+	"github.com/ddvk/rmfakecloud/internal/thumbnails"
 	"github.com/ddvk/rmfakecloud/internal/ui/viewmodel"
 	webui "github.com/ddvk/rmfakecloud/ui"
 	"github.com/gin-gonic/gin"
@@ -88,6 +90,8 @@ type ReactAppWrapper struct {
 	rm            *rmtools.Service
 	// renderPage draws a v6 page as an SVG
 	renderPage func(raw []byte) ([]byte, error)
+	// thumbs keeps pictures of the first page of documents; nil switches them off
+	thumbs *thumbnails.Store
 }
 
 type deviceLister interface {
@@ -145,6 +149,7 @@ func New(cfg *config.Config,
 		renderPage: func(raw []byte) ([]byte, error) {
 			return exporter.V6.RenderSVG(raw)
 		},
+		thumbs: thumbnails.New(filepath.Join(cfg.DataDir, "thumbnails"), thumbnails.Pdftoppm),
 	}
 	return &staticWrapper
 }

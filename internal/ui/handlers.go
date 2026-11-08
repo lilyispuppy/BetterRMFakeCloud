@@ -257,6 +257,7 @@ func (app *ReactAppWrapper) listDocuments(c *gin.Context) {
 		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
+	app.warmThumbnails(backend, uid, tree)
 	c.JSON(http.StatusOK, tree)
 }
 func (app *ReactAppWrapper) getDocument(c *gin.Context) {
