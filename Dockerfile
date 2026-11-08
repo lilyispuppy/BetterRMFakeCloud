@@ -11,6 +11,18 @@ WORKDIR /src
 COPY ui .
 RUN pnpm install && pnpm build
 
+# the new web app, served at /next; nothing is shared with the stage above
+FROM --platform=$BUILDPLATFORM node:22 AS nextbuilder
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable pnpm && corepack install -g pnpm@latest-9
+
+WORKDIR /src
+COPY frontend-next/package.json frontend-next/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY frontend-next .
+RUN pnpm test && pnpm build
+
 FROM golang:bookworm AS gobuilder
 ARG VERSION
 WORKDIR /src
@@ -23,6 +35,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY . .
 COPY --from=uibuilder /src/dist ./ui/dist
+COPY --from=nextbuilder /src/dist ./frontend-next/dist
 RUN go generate ./... && CGO_ENABLED=1 go build -tags cairo -ldflags "-s -w -X main.version=${VERSION}" -o rmfakecloud-docker ./cmd/rmfakecloud/
 
 FROM debian:bookworm-slim

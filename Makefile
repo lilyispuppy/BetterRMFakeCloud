@@ -15,7 +15,7 @@ UIFILES += ui/package.json
 TARGETS := $(addprefix $(OUT_DIR)/$(BINARY)-, x64 armv6 armv7 arm64 win64 docker)
 PNPM	= cd ui; pnpm
 
-.PHONY: all run runui clean test testgo testui
+.PHONY: all run runui runnext nextui clean test testgo testui testnext
 
 build: $(OUT_DIR)/$(BINARY)-x64
 
@@ -61,15 +61,25 @@ ui/node_modules:
 runui: ui/pnpm-lock.yaml
 	$(PNPM) run dev
 
+# the new web app (served at /next); the dev server proxies /ui/api to :3000
+runnext:
+	cd frontend-next; pnpm install; pnpm dev
+
+nextui:
+	cd frontend-next; pnpm install --frozen-lockfile; pnpm build
+
 clean:
 	rm -f $(OUT_DIR)/*
 	rm -fr $(ASSETS)
 
-test: testui testgo
+test: testui testnext testgo
 
 testui:
 	echo "TODO: fix this"
 	#CI=true $(PNPM) test
+
+testnext:
+	cd frontend-next; pnpm install --frozen-lockfile; pnpm test; pnpm lint
 
 testgo:
 	go test ./...

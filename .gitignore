@@ -15,6 +15,10 @@
 .eslintcache
 data/
 dist/
+# the new web app embeds its dist, so the directory must exist
+!/frontend-next/dist/
+/frontend-next/dist/*
+!/frontend-next/dist/.gitkeep
 node_modules/
 assets_vfsdata.go
 .vscode/

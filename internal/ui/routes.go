@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 
+	frontendnext "github.com/ddvk/rmfakecloud/frontend-next"
+	"github.com/ddvk/rmfakecloud/internal/nextui"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 )
@@ -11,6 +13,9 @@ import (
 // RegisterRoutes the apps routes
 func (app *ReactAppWrapper) RegisterRoutes(router *gin.Engine) {
 	router.StaticFS(app.prefix, app)
+
+	// the new web app, which shares nothing else with this one
+	nextui.Register(router, frontendnext.Dist())
 
 	router.GET("/favicon.ico", func(c *gin.Context) {
 		c.FileFromFS("/favicon.ico", app.fs)

@@ -39,4 +39,5 @@ nav:
       - Passcode Reset: usage/passcode-reset.md
       - Devices and Dev Tools: usage/dev-tools.md
       - Explorer: usage/explorer.md
+      - New web app (preview): usage/next-ui.md
   - Browser Extension: browser-extension.md

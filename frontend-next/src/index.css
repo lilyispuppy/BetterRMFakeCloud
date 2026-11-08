@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/* Design tokens from the design canvas. Light and dark follow the system setting. */
+@theme {
+  --color-surface: light-dark(#ffffff, #101114);
+  --color-raised: light-dark(#f5f6f8, #181a1f);
+  --color-line: light-dark(#e2e4e9, #2a2d34);
+  --color-ink: light-dark(#14161a, #eceef2);
+  --color-muted: light-dark(#5b6270, #9aa1ae);
+  --color-accent: #3b6df0;
+  --radius-card: 12px;
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  /* keep content clear of notches and home indicators */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
