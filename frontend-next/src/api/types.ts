@@ -101,3 +101,37 @@ export interface RmInfo {
 }
 
 export const isFolder = (e: Entry): e is FolderEntry => "isFolder" in e && e.isFolder === true;
+
+export interface Integration {
+  ID: string;
+  Provider: string;
+  Name: string;
+  Address?: string;
+  Username?: string;
+  Password?: string;
+  ActiveTransfers?: boolean;
+  Insecure?: boolean;
+  Accesstoken?: string;
+  Path?: string;
+  Endpoint?: string;
+}
+
+export interface UserSummary {
+  userid: string;
+  email: string;
+  name?: string;
+  isAdmin: boolean;
+  dev: boolean;
+  sync15: boolean;
+  integrationCount: number;
+  deviceCount: number;
+  lastSeen?: string;
+  CreatedAt?: string;
+}
+
+export interface LogEntry {
+  seq: number;
+  time: string;
+  level: string;
+  message: string;
+}
