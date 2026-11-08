@@ -1,22 +1,84 @@
 import { useState, type DragEvent, type FormEvent } from "react";
 import { Link } from "react-router";
-import { api } from "../../api/client";
-import { isFolder, type DocumentTree, type Entry } from "../../api/types";
+import { api, apiUrl } from "../../api/client";
+import { isFolder, type DocumentEntry, type DocumentTree, type Entry } from "../../api/types";
 import { Breadcrumbs } from "../../components/Breadcrumbs";
 import { Button, ErrorNote, Field } from "../../components/ui";
 import { formatBytes, formatDate } from "../../lib/format";
 import { TRASH, breadcrumbs, childrenOf, search } from "./tree";
 import { uploadFiles } from "./upload";
 
-function Icon({ folder }: { folder: boolean }) {
+function Icon({ folder, large }: { folder: boolean; large?: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" className={`size-6 shrink-0 ${folder ? "text-accent" : "text-muted"}`} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+    <svg viewBox="0 0 24 24" className={`${large ? "size-12" : "size-6"} shrink-0 ${folder ? "text-accent" : "text-muted"}`} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
       {folder ? (
-        <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10l2 2.5h6.5A1.5 1.5 0 0 1 20 8v10.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5z" />
+        <path d="M3 6a2 2 0 0 1 2-2h4.5l2 2.5H19a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
       ) : (
         <path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v4h4" />
       )}
     </svg>
+  );
+}
+
+type View = "grid" | "list";
+const VIEW_KEY = "rmfc.next.libraryView";
+
+/** The last choice, or a grid where there is room for one. */
+function initialView(): View {
+  const saved = localStorage.getItem(VIEW_KEY);
+  if (saved === "grid" || saved === "list") return saved;
+  return window.matchMedia?.("(min-width: 768px)").matches ? "grid" : "list";
+}
+
+function ViewToggle({ view, onChange }: { view: View; onChange(v: View): void }) {
+  return (
+    <div role="group" aria-label="View" className="inline-flex overflow-hidden rounded-lg border border-line">
+      {(["grid", "list"] as const).map((v) => (
+        <button
+          key={v}
+          type="button"
+          aria-pressed={view === v}
+          onClick={() => onChange(v)}
+          className={`min-h-11 px-3 text-sm font-medium capitalize ${view === v ? "bg-accent/15 text-accent" : "text-muted hover:text-ink"}`}
+        >
+          {v}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The first page of a document. The modification time in the address lets the browser keep it for good. */
+function Thumb({ entry }: { entry: DocumentEntry }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <Icon folder={false} large />;
+  return (
+    <img
+      src={apiUrl(`documents/${entry.id}/thumbnail`, { v: Date.parse(entry.lastModified) })}
+      alt=""
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="size-full object-cover object-top"
+    />
+  );
+}
+
+function Card({ entry }: { entry: Entry }) {
+  const folder = isFolder(entry);
+  return (
+    <li>
+      <Link to={`/library/${entry.id}`} className="group flex flex-col gap-2 rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+        <span
+          className={`flex aspect-[3/4] items-center justify-center overflow-hidden rounded-card border border-line ${folder ? "bg-accent/10" : "bg-white"} group-hover:border-accent`}
+        >
+          {folder ? <Icon folder large /> : <Thumb entry={entry} />}
+        </span>
+        <span className="min-w-0 px-1">
+          <span className="block truncate text-sm font-medium">{entry.name}</span>
+          <span className="block truncate text-xs text-muted">{folder ? "Folder" : formatDate(entry.lastModified)}</span>
+        </span>
+      </Link>
+    </li>
   );
 }
 
@@ -39,6 +101,7 @@ function Row({ entry, where }: { entry: Entry; where?: string }) {
 
 export function FolderView({ tree, folderId, reload }: { tree: DocumentTree; folderId: string; reload(): void }) {
   const [query, setQuery] = useState("");
+  const [view, setView] = useState<View>(initialView);
   const [naming, setNaming] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -119,14 +182,23 @@ export function FolderView({ tree, folderId, reload }: { tree: DocumentTree; fol
         </form>
       )}
 
-      <input
-        type="search"
-        aria-label="Search"
-        placeholder="Search the library"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        className="mb-4 min-h-11 w-full rounded-lg border border-line bg-surface px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
-      />
+      <div className="mb-4 flex gap-2">
+        <input
+          type="search"
+          aria-label="Search"
+          placeholder="Search the library"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="min-h-11 min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 text-base focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+        />
+        <ViewToggle
+          view={view}
+          onChange={(v) => {
+            setView(v);
+            localStorage.setItem(VIEW_KEY, v);
+          }}
+        />
+      </div>
 
       {busy && (
         <p role="status" className="mb-3 text-sm text-muted">
@@ -149,6 +221,12 @@ export function FolderView({ tree, folderId, reload }: { tree: DocumentTree; fol
         )
       ) : entries.length === 0 ? (
         <p className="py-6 text-muted">{inTrash ? "The trash is empty." : "Nothing here yet. Upload a PDF to get started."}</p>
+      ) : view === "grid" ? (
+        <ul aria-label="Items" className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {entries.map((entry) => (
+            <Card key={entry.id} entry={entry} />
+          ))}
+        </ul>
       ) : (
         <ul aria-label="Items" className="divide-y divide-line overflow-hidden rounded-card border border-line">
           {entries.map((entry) => (

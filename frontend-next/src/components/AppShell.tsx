@@ -7,14 +7,14 @@ import { AccountMenu } from "./AccountMenu";
 
 function LibraryIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-      <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10l2 2.5h6.5A1.5 1.5 0 0 1 20 8v10.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5z" />
+    <svg viewBox="0 0 24 24" className="block size-6 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M3 6a2 2 0 0 1 2-2h4.5l2 2.5H19a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
     </svg>
   );
 }
 function ScreenIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+    <svg viewBox="0 0 24 24" className="block size-6 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
       <rect x="3" y="4" width="18" height="12" rx="2" />
       <path d="M8 20h8M12 16v4" />
     </svg>
@@ -63,7 +63,7 @@ export function AppShell() {
               key={p.to}
               to={p.to}
               className={({ isActive }) =>
-                `flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium ${isActive ? "text-accent" : "text-muted"}`
+                `flex min-h-14 flex-col items-center justify-center gap-1 text-xs leading-none font-medium ${isActive ? "text-accent" : "text-muted"}`
               }
             >
               {p.icon}

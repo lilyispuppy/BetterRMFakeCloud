@@ -22,7 +22,8 @@ export default defineConfig({
         injectRegister: false,
         manifest,
         manifestFilename: "manifest.webmanifest",
-        injectManifest: { globPatterns: ["**/*.{js,css,html,svg,png,ico,webmanifest}"] },
+        // the PDF reader is big and only needed when a document is opened; the browser keeps it after that
+        injectManifest: { globPatterns: ["**/*.{js,css,html,svg,png,ico,webmanifest}"], globIgnores: ["**/assets/pdf-*.js"] },
         devOptions: { enabled: false },
       }),
   ],

@@ -81,3 +81,13 @@ export async function api<T = unknown>(path: string, options: RequestOptions = {
   if (res.headers.get("Content-Type")?.startsWith("application/json")) return JSON.parse(text) as T;
   return text as T;
 }
+
+/** A file from the server, as bytes. */
+export async function apiBytes(path: string, options: { query?: Query; signal?: AbortSignal } = {}): Promise<ArrayBuffer> {
+  const res = await fetch(apiUrl(path, options.query), { credentials: "same-origin", signal: options.signal });
+  if (!res.ok) {
+    if (res.status === 401) unauthorised?.();
+    throw await failure(res);
+  }
+  return res.arrayBuffer();
+}

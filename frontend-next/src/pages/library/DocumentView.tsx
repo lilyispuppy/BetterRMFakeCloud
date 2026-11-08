@@ -1,95 +1,37 @@
-import { useState, type FormEvent, type ReactNode } from "react";
-import { useNavigate } from "react-router";
-import { ApiError, api, apiUrl } from "../../api/client";
-import type { DocumentTree, RmStat } from "../../api/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { apiUrl } from "../../api/client";
+import type { DocumentTree } from "../../api/types";
 import { Breadcrumbs } from "../../components/Breadcrumbs";
-import { Button, ErrorNote, Field, Loading, buttonClass } from "../../components/ui";
-import { formatBytes, formatDate } from "../../lib/format";
-import { useResource } from "../../lib/useResource";
-import { breadcrumbs, folderChoices, type Located } from "./tree";
+import { Button, ErrorNote, Loading, buttonClass } from "../../components/ui";
+import { DocumentDetails } from "./DocumentDetails";
+import { PageCanvas } from "./PageCanvas";
+import { usePdf } from "./usePdf";
+import { breadcrumbs, type Located } from "./tree";
 
-type Tab = "info" | "pages" | "files";
+const ZOOM_STEP = 0.25;
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 3;
+// a page wider than this is hard to read across, however wide the screen
+const FIT_MAX = 900;
+const GUTTER = 32;
 
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-0.5 py-2 sm:flex-row sm:gap-4">
-      <dt className="w-40 shrink-0 text-sm text-muted">{label}</dt>
-      <dd className="min-w-0 break-words">{children}</dd>
-    </div>
-  );
+function useWidth(ref: React.RefObject<HTMLElement | null>): number {
+  const [width, setWidth] = useState(FIT_MAX);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const watcher = new ResizeObserver(() => el.clientWidth > 0 && setWidth(el.clientWidth));
+    watcher.observe(el);
+    return () => watcher.disconnect();
+  }, [ref]);
+  return width;
 }
 
-function Info({ stat }: { stat: RmStat }) {
-  return (
-    <dl className="divide-y divide-line">
-      <Row label="Kind">{stat.fileType}</Row>
-      <Row label="Version">{stat.version}</Row>
-      <Row label="Starred">{stat.starred ? "Yes" : "No"}</Row>
-      <Row label="Tags">{stat.tags?.length ? stat.tags.map((t) => <span key={t} className="mr-1 rounded bg-line px-2 py-0.5 text-sm">{t}</span>) : "None"}</Row>
-      <Row label="Modified">{formatDate(stat.modifiedClient)}</Row>
-      <Row label="Last opened">{formatDate(stat.lastOpened)}</Row>
-      <Row label="Created">{formatDate(stat.createdTime)}</Row>
-      {stat.content && (
-        <>
-          <Row label="Pages">{stat.content.pageCount}</Row>
-          <Row label="Current page">{stat.currentPage + 1}</Row>
-          <Row label="Orientation">{stat.content.orientation || "—"}</Row>
-        </>
-      )}
-      <Row label="Stored size">{formatBytes(stat.totalSize)}</Row>
-    </dl>
-  );
-}
-
-function Pages({ stat }: { stat: RmStat }) {
-  const pages = stat.pages ?? [];
-  if (pages.length === 0) return <p className="py-4 text-muted">This document has no pages.</p>;
-  return (
-    <ul aria-label="Pages" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-      {pages.map((page, i) => {
-        const src = apiUrl("rm/page", { id: stat.id, page: i });
-        return (
-          <li key={page.id} className="flex flex-col gap-1">
-            <a href={src} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-line bg-white">
-              <img src={src} alt={`Page ${i + 1}`} loading="lazy" className="aspect-[3/4] w-full object-contain" />
-            </a>
-            <span className="text-sm text-muted">
-              Page {i + 1}
-              {page.template ? ` · ${page.template}` : ""}
-            </span>
-            {page.tags?.map((t) => (
-              <span key={t} className="w-fit rounded bg-line px-2 py-0.5 text-xs">
-                {t}
-              </span>
-            ))}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function Files({ stat }: { stat: RmStat }) {
-  return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="border-b border-line text-left text-muted">
-          <th className="py-2 pr-4 font-medium">File</th>
-          <th className="py-2 text-right font-medium">Size</th>
-        </tr>
-      </thead>
-      <tbody>
-        {(stat.files ?? []).map((f) => (
-          <tr key={f.name} className="border-b border-line/60">
-            <td className="break-all py-2 pr-4 font-mono">{f.name}</td>
-            <td className="py-2 text-right">{formatBytes(f.size)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
+/**
+ * Opening a document shows the document: its pages, with what was written on
+ * them merged in. Everything else (what it is made of, renaming, moving,
+ * deleting) is behind Details.
+ */
 export function DocumentView({
   tree,
   located,
@@ -100,155 +42,105 @@ export function DocumentView({
   reload(): void;
 }) {
   const { entry, parentId } = located;
-  const navigate = useNavigate();
-  const stat = useResource(`stat:${entry.id}`, (signal) => api<RmStat>("rm/stat", { query: { id: entry.id }, signal }));
-  const [tab, setTab] = useState<Tab>("info");
-  const [mode, setMode] = useState<"rename" | "move" | null>(null);
-  const [name, setName] = useState(entry.name);
-  const [target, setTarget] = useState(parentId);
-  const [error, setError] = useState<unknown>(null);
-  const [busy, setBusy] = useState(false);
+  const pdf = usePdf(entry.id);
+  const [zoom, setZoom] = useState(1);
+  const [current, setCurrent] = useState(1);
+  const [details, setDetails] = useState(false);
+  const scroller = useRef<HTMLDivElement>(null);
+  const available = useWidth(scroller);
+  const [ratio, setRatio] = useState(4 / 3);
 
-  const choices = folderChoices(tree);
+  const fit = Math.min(available - GUTTER, FIT_MAX);
+  const width = Math.max(1, Math.round(fit * zoom));
   const back = parentId === "" ? "/library" : `/library/${parentId}`;
 
-  async function attempt(work: () => Promise<void>) {
-    setBusy(true);
-    setError(null);
-    try {
-      await work();
-    } catch (e) {
-      setError(e);
-    } finally {
-      setBusy(false);
+  // pages are laid out at the proportions of the first one until they are known
+  useEffect(() => {
+    let live = true;
+    pdf.doc?.getPage(1).then((p) => live && setRatio(p.height / p.width), () => undefined);
+    return () => {
+      live = false;
+    };
+  }, [pdf.doc]);
+
+  const onScroll = useCallback(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const middle = el.getBoundingClientRect().top + el.clientHeight / 2;
+    for (const page of el.querySelectorAll<HTMLElement>("[data-page]")) {
+      if (page.getBoundingClientRect().bottom >= middle) {
+        setCurrent(Number(page.dataset.page));
+        return;
+      }
     }
-  }
+  }, []);
 
-  const update = (next: { name: string; parentId: string }) =>
-    attempt(async () => {
-      await api("documents", { method: "PUT", body: { documentId: entry.id, ...next } });
-      setMode(null);
-      reload();
-    });
+  const go = useCallback((n: number) => {
+    scroller.current?.querySelector(`[data-page="${n}"]`)?.scrollIntoView({ block: "start" });
+    setCurrent(n);
+    setDetails(false);
+  }, []);
 
-  function rename(e: FormEvent) {
-    e.preventDefault();
-    if (name.trim()) void update({ name: name.trim(), parentId });
-  }
-
-  function remove() {
-    if (!window.confirm(`Delete “${entry.name}”? This cannot be undone.`)) return;
-    void attempt(async () => {
-      await api(`documents/${entry.id}`, { method: "DELETE" });
-      reload();
-      navigate(back, { replace: true });
-    });
-  }
-
-  const tabs: [Tab, string][] = [
-    ["info", "Info"],
-    ["pages", "Pages"],
-    ["files", "Files"],
-  ];
-  const needsSync15 = stat.error instanceof ApiError && stat.error.status === 501;
+  const zoomBy = (step: number) => setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round((z + step) * 100) / 100)));
 
   return (
-    <div>
+    <div className="flex h-full min-h-0 flex-col">
       <Breadcrumbs trail={breadcrumbs(tree, entry.id)} />
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h1 className="min-w-0 break-words text-2xl font-semibold">{entry.name}</h1>
-        <div className="flex flex-wrap gap-2">
-          <a className={buttonClass("primary")} href={apiUrl(`documents/${entry.id}`, { type: "pdf" })} download>
-            Download PDF
-          </a>
-          <a className={buttonClass("secondary")} href={apiUrl(`documents/${entry.id}`, { type: "rmdoc" })} download>
-            Download rmdoc
-          </a>
-        </div>
-      </div>
-
-      <div className="mb-4 flex flex-wrap gap-2">
-        <Button onClick={() => setMode(mode === "rename" ? null : "rename")}>Rename</Button>
-        <Button onClick={() => setMode(mode === "move" ? null : "move")}>Move</Button>
-        <Button variant="danger" onClick={remove} disabled={busy}>
-          Delete
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h1 className="min-w-0 flex-1 truncate text-xl font-semibold md:text-2xl">{entry.name}</h1>
+        <Button variant="primary" onClick={() => setDetails(true)}>
+          Details
         </Button>
       </div>
+      <div className="mb-3 flex items-center gap-2">
+        {pdf.doc && (
+          <>
+            <span aria-live="polite" className="px-1 text-sm text-muted">
+              {current} / {pdf.doc.pageCount}
+            </span>
+            <div role="group" aria-label="Zoom" className="inline-flex gap-1">
+              <Button aria-label="Zoom out" onClick={() => zoomBy(-ZOOM_STEP)} disabled={zoom <= ZOOM_MIN} className="px-3">
+                −
+              </Button>
+              <Button aria-label="Fit width" onClick={() => setZoom(1)} disabled={zoom === 1} className="px-3">
+                Fit
+              </Button>
+              <Button aria-label="Zoom in" onClick={() => zoomBy(ZOOM_STEP)} disabled={zoom >= ZOOM_MAX} className="px-3">
+                +
+              </Button>
+            </div>
+          </>
+        )}
+        <a className={`${buttonClass("secondary")} ml-auto`} href={apiUrl(`documents/${entry.id}`, { type: "pdf" })} download aria-label="Download PDF">
+          <span className="sm:hidden">PDF</span>
+          <span className="hidden sm:inline">Download PDF</span>
+        </a>
+      </div>
 
-      {mode === "rename" && (
-        <form onSubmit={rename} className="mb-4 flex flex-wrap items-end gap-2">
-          <div className="min-w-48 flex-1">
-            <Field id="doc-name" label="Name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-          </div>
-          <Button type="submit" variant="primary" disabled={busy || !name.trim()}>
-            Save
-          </Button>
-        </form>
+      <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-auto rounded-card border border-line bg-raised p-4">
+        {pdf.error ? (
+          <ErrorNote error={pdf.error} />
+        ) : pdf.loading || !pdf.doc ? (
+          <Loading label="Opening the document" />
+        ) : (
+          Array.from({ length: pdf.doc.pageCount }, (_, i) => i + 1).map((n) => (
+            <PageCanvas key={n} doc={pdf.doc!} number={n} width={width} ratio={ratio} />
+          ))
+        )}
+      </div>
+
+      {details && (
+        <DocumentDetails
+          tree={tree}
+          entry={entry}
+          parentId={parentId}
+          doc={pdf.doc}
+          back={back}
+          reload={reload}
+          onGo={go}
+          onClose={() => setDetails(false)}
+        />
       )}
-      {mode === "move" && (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void update({ name: entry.name, parentId: target });
-          }}
-          className="mb-4 flex flex-wrap items-end gap-2"
-        >
-          <div className="flex min-w-48 flex-1 flex-col gap-1">
-            <label htmlFor="doc-target" className="text-sm font-medium">
-              Move to
-            </label>
-            <select id="doc-target" value={target} onChange={(e) => setTarget(e.target.value)} className="min-h-11 rounded-lg border border-line bg-surface px-3">
-              {choices.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <Button type="submit" variant="primary" disabled={busy}>
-            Move here
-          </Button>
-        </form>
-      )}
-
-      <div className="mb-3">
-        <ErrorNote error={error} />
-      </div>
-
-      <div role="tablist" aria-label="Document details" className="mb-4 flex gap-1 border-b border-line">
-        {tabs.map(([id, label]) => (
-          <button
-            key={id}
-            role="tab"
-            type="button"
-            aria-selected={tab === id}
-            onClick={() => setTab(id)}
-            className={`min-h-11 border-b-2 px-4 text-sm font-medium ${tab === id ? "border-accent text-accent" : "border-transparent text-muted hover:text-ink"}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div role="tabpanel">
-        {stat.loading && !stat.data ? (
-          <Loading />
-        ) : needsSync15 ? (
-          <p className="py-4 text-muted">
-            Details and page previews are not available: the explorer needs sync 1.5 and this account uses an older version. The downloads above still work.
-          </p>
-        ) : stat.error ? (
-          <ErrorNote error={stat.error} />
-        ) : stat.data ? (
-          tab === "info" ? (
-            <Info stat={stat.data} />
-          ) : tab === "pages" ? (
-            <Pages stat={stat.data} />
-          ) : (
-            <Files stat={stat.data} />
-          )
-        ) : null}
-      </div>
     </div>
   );
 }

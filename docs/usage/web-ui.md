@@ -23,6 +23,22 @@ right: Devices (with Connect), Profile, Integrations, Developer settings (Logs
 and Explorer, for developers) and Admin (for administrators). The same menu
 links to the legacy app.
 
+### Library and documents
+
+The library shows documents as a **grid** of thumbnails or as a **list**; the
+choice is remembered (a grid on wide screens, a list on phones, until you
+choose). Opening a document opens a **viewer**: its pages, with your
+annotations merged into the PDF, with page indicator, zoom and a PDF download.
+Everything else is behind **Details**: type, dates, tags, page overview, the
+files it is made of, rename, move, delete and the raw `.rmdoc` download.
+
+Thumbnails are the first page of the same annotated PDF. They are drawn once per
+version of a document, kept in `<DATADIR>/thumbnails`, and drawn in the
+background when the library is listed. They need `pdftoppm` (from
+poppler-utils), which the Docker image contains; without it the library shows
+icons instead. The viewer needs nothing on the server: the PDF is drawn in the
+browser.
+
 ### Installing it and using it offline
 
 The new app is a progressive web app. Browsers only offer installation, and
