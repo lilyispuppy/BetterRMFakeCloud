@@ -2,6 +2,7 @@ import { useState, type DragEvent, type FormEvent } from "react";
 import { Link } from "react-router";
 import { api } from "../../api/client";
 import { isFolder, type DocumentTree, type Entry } from "../../api/types";
+import { Breadcrumbs } from "../../components/Breadcrumbs";
 import { Button, ErrorNote, Field } from "../../components/ui";
 import { formatBytes, formatDate } from "../../lib/format";
 import { TRASH, breadcrumbs, childrenOf, search } from "./tree";
@@ -84,22 +85,7 @@ export function FolderView({ tree, folderId, reload }: { tree: DocumentTree; fol
 
   return (
     <div onDragOver={(e) => e.preventDefault()} onDrop={drop}>
-      <nav aria-label="Breadcrumb" className="mb-1 text-sm text-muted">
-        <ol className="flex flex-wrap items-center gap-1">
-          {trail.map((crumb, i) => (
-            <li key={crumb.id} className="flex items-center gap-1">
-              {i > 0 && <span aria-hidden="true">/</span>}
-              {i < trail.length - 1 ? (
-                <Link to={crumb.id ? `/library/${crumb.id}` : "/library"} className="inline-flex min-h-8 items-center text-accent">
-                  {crumb.name}
-                </Link>
-              ) : (
-                <span aria-current="page">{crumb.name}</span>
-              )}
-            </li>
-          ))}
-        </ol>
-      </nav>
+      <Breadcrumbs trail={trail} />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold">{trail.length === 1 ? "Library" : trail[trail.length - 1]?.name}</h1>
         {!inTrash && (
