@@ -61,7 +61,7 @@ ui/node_modules:
 runui: ui/pnpm-lock.yaml
 	$(PNPM) run dev
 
-# the new web app (served at /next); the dev server proxies /ui/api to :3000
+# the new web app (served at /); the dev server proxies /ui/api to :3000
 runnext:
 	cd frontend-next; pnpm install; pnpm dev
 

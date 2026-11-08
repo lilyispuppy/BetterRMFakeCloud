@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react-swc'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // the old app is served below /legacy; the new app owns the root
+  base: "/legacy/",
   plugins: [react()],
   build: {
     rollupOptions: {

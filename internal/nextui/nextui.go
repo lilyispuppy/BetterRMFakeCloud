@@ -1,8 +1,7 @@
-// Package nextui serves the new progressive web app at /next.
+// Package nextui serves the new progressive web app at the root of the site.
 //
-// It is deliberately independent of the existing web UI: it takes the built
-// files as an fs.FS, answers only below /next, and shares nothing with the old
-// app's routing except being registered on the same router.
+// It is deliberately independent of the old web UI: it takes the built files
+// as an fs.FS and answers GET and HEAD requests that nothing else claimed.
 package nextui
 
 import (
@@ -15,9 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Prefix is where the app is served
-const Prefix = "/next"
-
 const (
 	cacheNever     = "no-cache"
 	cacheForever   = "public, max-age=31536000, immutable"
@@ -28,16 +24,17 @@ const (
 	notBuiltPrompt = "The new web app has not been built. Run `pnpm build` in frontend-next, or use the Docker image."
 )
 
-// Register serves assets below /next. Files are served as they are, hashed
-// build output with a far future cache, and any other path without a file
-// extension gets the app shell so that client side routes work.
-func Register(router *gin.Engine, assets fs.FS) {
-	h := handler{assets: http.FS(assets), files: assets}
+// notMine are the prefixes that belong to the API and the old app, which must
+// never be answered with the app shell
+var notMine = []string{"/api", "/ui/api", "/legacy"}
 
-	router.GET(Prefix, func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, Prefix+"/")
-	})
-	router.Match([]string{http.MethodGet, http.MethodHead}, Prefix+"/*filepath", h.serve)
+// Handler serves the app. Files are served as they are, hashed build output
+// with a far future cache, and any other path without a file extension gets
+// the app shell so that client side routes work. Mount it on "/" and as the
+// router's NoRoute handler, so registered routes always win.
+func Handler(assets fs.FS) gin.HandlerFunc {
+	h := handler{assets: http.FS(assets), files: assets}
+	return h.serve
 }
 
 type handler struct {
@@ -46,7 +43,18 @@ type handler struct {
 }
 
 func (h handler) serve(c *gin.Context) {
-	name := strings.TrimPrefix(path.Clean("/"+c.Param("filepath")), "/")
+	if c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	clean := path.Clean("/" + c.Request.URL.Path)
+	for _, p := range notMine {
+		if clean == p || strings.HasPrefix(clean, p+"/") {
+			c.AbortWithStatus(http.StatusNotFound)
+			return
+		}
+	}
+	name := strings.TrimPrefix(clean, "/")
 	if name == "" {
 		name = indexName
 	}

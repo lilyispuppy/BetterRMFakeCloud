@@ -41,7 +41,7 @@ export default function App() {
   return (
     <>
       <AuthProvider>
-        <Router>
+        <Router basename="/legacy">
           <div style={{display: "flex", flexDirection: "column", height: "100%"}}>
             <Navigationbar />
             <PasscodeResets />

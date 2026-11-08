@@ -3,8 +3,8 @@ package ui
 import (
 	"io"
 	"io/fs"
+	iofs "io/fs"
 	"net/http"
-	"path"
 	"time"
 
 	"github.com/ddvk/rmfakecloud/internal/app/hub"
@@ -72,8 +72,8 @@ type mqttBridge interface {
 
 // ReactAppWrapper encapsulates an app
 type ReactAppWrapper struct {
-	fs            http.FileSystem
-	prefix        string
+	fs            http.FileSystem // the old web app's build, served under /legacy
+	next          iofs.FS         // the new web app's build, served at the root; nil means the embedded one
 	cfg           *config.Config
 	userStorer    storage.UserStorer
 	codeConnector codeGenerator
@@ -99,8 +99,6 @@ type onlineChecker interface {
 	ConnectedDevices(uid string) []string
 }
 
-// hack for serving index.html on /
-const indexReplacement = "/default"
 const jsBuildFolder = "dist"
 
 // New Create a React app
@@ -129,7 +127,6 @@ func New(cfg *config.Config,
 	}
 	staticWrapper := ReactAppWrapper{
 		fs:            common.NewLastModifiedFS(http.FS(sub), time.Now()),
-		prefix:        "/assets",
 		cfg:           cfg,
 		userStorer:    userStorer,
 		codeConnector: codeConnector,
@@ -152,18 +149,6 @@ func New(cfg *config.Config,
 	return &staticWrapper
 }
 
-// Open opens a file from the fs (virtual)
-func (w ReactAppWrapper) Open(filepath string) (http.File, error) {
-	fullpath := filepath
-	//index.html hack
-	if filepath != indexReplacement {
-		fullpath = path.Join(w.prefix, filepath)
-	} else {
-		fullpath = "/index.html"
-	}
-	f, err := w.fs.Open(fullpath)
-	return f, err
-}
 func badReq(c *gin.Context, message string) {
 	c.AbortWithStatusJSON(http.StatusBadRequest, viewmodel.NewErrorResponse(message))
 }

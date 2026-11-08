@@ -2,7 +2,6 @@ package ui
 
 import (
 	"net/http"
-	"strings"
 
 	frontendnext "github.com/ddvk/rmfakecloud/frontend-next"
 	"github.com/ddvk/rmfakecloud/internal/nextui"
@@ -12,31 +11,22 @@ import (
 
 // RegisterRoutes the apps routes
 func (app *ReactAppWrapper) RegisterRoutes(router *gin.Engine) {
-	router.StaticFS(app.prefix, app)
+	// the new web app is the default, the old one lives under /legacy. Both are
+	// served only for requests no registered route claimed.
+	next := app.next
+	if next == nil {
+		next = frontendnext.Dist()
+	}
+	newApp := nextui.Handler(next)
+	legacy := app.legacyHandler()
 
-	// the new web app, which shares nothing else with this one
-	nextui.Register(router, frontendnext.Dist())
-
-	router.GET("/favicon.ico", func(c *gin.Context) {
-		c.FileFromFS("/favicon.ico", app.fs)
-	})
-	router.GET("/robots.txt", func(c *gin.Context) {
-		c.FileFromFS("/robots.txt", app.fs)
-	})
-
-	//hack for index.html
+	router.GET("/", newApp)
 	router.NoRoute(func(c *gin.Context) {
-		uri := c.Request.RequestURI
-		log.Info(uri)
-		if strings.HasPrefix(uri, "/api") ||
-			strings.HasPrefix(uri, "/ui/api") ||
-			c.Request.Method != http.MethodGet {
-
-			c.AbortWithStatus(http.StatusNotFound)
+		if isLegacyPath(c.Request.URL.Path) {
+			legacy(c)
 			return
 		}
-
-		c.FileFromFS(indexReplacement, app)
+		newApp(c)
 	})
 
 	r := router.Group("/ui/api")

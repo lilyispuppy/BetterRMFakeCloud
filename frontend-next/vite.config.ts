@@ -2,9 +2,9 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-// The app is served by the Go server below /next, so every URL is relative to it.
+// The app is served by the Go server at the root of the site; the old app lives below /legacy.
 export default defineConfig({
-  base: "/next/",
+  base: "/",
   plugins: [react(), tailwindcss()],
   build: {
     outDir: "dist",

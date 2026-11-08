@@ -20,7 +20,7 @@ const useFetch = (url, options) => {
         } else if (response.status === 401) {
           // //TODO: fix this hack
           localStorage.removeItem("currentUser");
-          window.location.replace("/")
+          window.location.replace("/legacy/")
         } else {
           throw response;
         }

@@ -28,15 +28,9 @@ func assets() fstest.MapFS {
 func router(fsys fstest.MapFS) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	// like the existing app, which answers unknown GETs with its own index.html
-	r.NoRoute(func(c *gin.Context) {
-		if c.Request.Method != http.MethodGet {
-			c.AbortWithStatus(http.StatusNotFound)
-			return
-		}
-		c.String(http.StatusOK, "old app")
-	})
-	Register(r, fsys)
+	h := Handler(fsys)
+	r.GET("/", h)
+	r.NoRoute(h)
 	return r
 }
 
@@ -47,7 +41,7 @@ func get(r http.Handler, method, url string) *httptest.ResponseRecorder {
 }
 
 func TestRootServesTheShellUncached(t *testing.T) {
-	w := get(router(assets()), http.MethodGet, "/next/")
+	w := get(router(assets()), http.MethodGet, "/")
 	if w.Code != 200 || w.Body.String() != shell {
 		t.Fatalf("%d %q", w.Code, w.Body.String())
 	}
@@ -59,18 +53,8 @@ func TestRootServesTheShellUncached(t *testing.T) {
 	}
 }
 
-func TestWithoutTheTrailingSlashItRedirects(t *testing.T) {
-	w := get(router(assets()), http.MethodGet, "/next")
-	if w.Code != http.StatusMovedPermanently && w.Code != http.StatusPermanentRedirect {
-		t.Fatalf("got %d", w.Code)
-	}
-	if loc := w.Header().Get("Location"); loc != "/next/" {
-		t.Fatalf("Location %q", loc)
-	}
-}
-
 func TestClientSideRoutesGetTheShell(t *testing.T) {
-	for _, url := range []string{"/next/settings/devices", "/next/doc/123", "/next/share", "/next/settings/developer/logs"} {
+	for _, url := range []string{"/settings/devices", "/doc/123", "/share", "/settings/developer/logs", "/documents"} {
 		w := get(router(assets()), http.MethodGet, url)
 		if w.Code != 200 || w.Body.String() != shell {
 			t.Errorf("%s: %d %q", url, w.Code, w.Body.String())
@@ -81,8 +65,8 @@ func TestClientSideRoutesGetTheShell(t *testing.T) {
 func TestHashedAssetsAreCachedForever(t *testing.T) {
 	r := router(assets())
 	for url, want := range map[string]string{
-		"/next/assets/app-abc123.js":    "console.log(1)",
-		"/next/assets/style-abc123.css": "body{}",
+		"/assets/app-abc123.js":    "console.log(1)",
+		"/assets/style-abc123.css": "body{}",
 	} {
 		w := get(r, http.MethodGet, url)
 		if w.Code != 200 || w.Body.String() != want {
@@ -96,7 +80,7 @@ func TestHashedAssetsAreCachedForever(t *testing.T) {
 
 func TestTheServiceWorkerAndManifestAreNeverCached(t *testing.T) {
 	r := router(assets())
-	for _, url := range []string{"/next/sw.js", "/next/manifest.webmanifest", "/next/registerSW.js", "/next/workbox-1a2b3c.js"} {
+	for _, url := range []string{"/sw.js", "/manifest.webmanifest", "/registerSW.js", "/workbox-1a2b3c.js"} {
 		w := get(r, http.MethodGet, url)
 		if w.Code != 200 {
 			t.Fatalf("%s: %d", url, w.Code)
@@ -108,14 +92,14 @@ func TestTheServiceWorkerAndManifestAreNeverCached(t *testing.T) {
 }
 
 func TestTheManifestHasItsOwnContentType(t *testing.T) {
-	w := get(router(assets()), http.MethodGet, "/next/manifest.webmanifest")
+	w := get(router(assets()), http.MethodGet, "/manifest.webmanifest")
 	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/manifest+json") {
 		t.Fatalf("Content-Type %q", ct)
 	}
 }
 
 func TestOtherFilesAreServedWithAShortCache(t *testing.T) {
-	w := get(router(assets()), http.MethodGet, "/next/icons/icon-192.png")
+	w := get(router(assets()), http.MethodGet, "/icons/icon-192.png")
 	if w.Code != 200 || w.Body.String() != "png" {
 		t.Fatalf("%d %q", w.Code, w.Body.String())
 	}
@@ -126,7 +110,7 @@ func TestOtherFilesAreServedWithAShortCache(t *testing.T) {
 
 func TestAMissingFileIsNotFoundNotTheShell(t *testing.T) {
 	r := router(assets())
-	for _, url := range []string{"/next/assets/gone.js", "/next/icons/nope.png", "/next/missing.map"} {
+	for _, url := range []string{"/assets/gone.js", "/icons/nope.png", "/missing.map"} {
 		if w := get(r, http.MethodGet, url); w.Code != http.StatusNotFound {
 			t.Errorf("%s: got %d", url, w.Code)
 		}
@@ -134,25 +118,25 @@ func TestAMissingFileIsNotFoundNotTheShell(t *testing.T) {
 }
 
 func TestDirectoriesAreNotListed(t *testing.T) {
-	w := get(router(assets()), http.MethodGet, "/next/assets/")
+	w := get(router(assets()), http.MethodGet, "/assets/")
 	if strings.Contains(w.Body.String(), "app-abc123.js") {
 		t.Fatalf("listing leaked: %q", w.Body.String())
 	}
 }
 
 func TestOnlyGetAndHeadAreAnswered(t *testing.T) {
-	w := get(router(assets()), http.MethodPost, "/next/settings")
+	w := get(router(assets()), http.MethodPost, "/settings")
 	if w.Code != http.StatusNotFound && w.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("POST got %d", w.Code)
 	}
-	if w := get(router(assets()), http.MethodHead, "/next/"); w.Code != 200 {
+	if w := get(router(assets()), http.MethodHead, "/"); w.Code != 200 {
 		t.Fatalf("HEAD got %d", w.Code)
 	}
 }
 
 func TestPathsCannotEscapeTheAssets(t *testing.T) {
 	r := router(assets())
-	for _, url := range []string{"/next/..%2f..%2fetc/passwd", "/next/%2e%2e/%2e%2e/etc/passwd", "/next/assets/..%2f..%2fgo.mod"} {
+	for _, url := range []string{"/..%2f..%2fetc/passwd", "/%2e%2e/%2e%2e/etc/passwd", "/assets/..%2f..%2fgo.mod"} {
 		w := get(r, http.MethodGet, url)
 		if strings.Contains(w.Body.String(), "root:") || strings.Contains(w.Body.String(), "module ") {
 			t.Errorf("%s leaked a file", url)
@@ -162,7 +146,7 @@ func TestPathsCannotEscapeTheAssets(t *testing.T) {
 
 func TestAnUnbuiltFrontendSaysSo(t *testing.T) {
 	empty := fstest.MapFS{".gitkeep": {Data: nil}}
-	w := get(router(empty), http.MethodGet, "/next/")
+	w := get(router(empty), http.MethodGet, "/")
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("got %d", w.Code)
 	}
@@ -171,12 +155,25 @@ func TestAnUnbuiltFrontendSaysSo(t *testing.T) {
 	}
 }
 
-func TestTheOldAppIsLeftAlone(t *testing.T) {
-	r := router(assets())
-	if w := get(r, http.MethodGet, "/some/old/route"); w.Body.String() != "old app" {
-		t.Fatalf("the old app's fallback was changed: %q", w.Body.String())
+func TestOnlyGetAndHeadReachTheApp(t *testing.T) {
+	for _, m := range []string{http.MethodPut, http.MethodDelete, http.MethodPatch} {
+		if w := get(router(assets()), m, "/anything"); w.Code != http.StatusNotFound {
+			t.Errorf("%s got %d", m, w.Code)
+		}
 	}
-	if w := get(r, http.MethodGet, "/nextish"); w.Body.String() != "old app" {
-		t.Fatalf("/nextish should not be served by the new app: %q", w.Body.String())
+}
+
+func TestTheApiPrefixesAreNeverTheShell(t *testing.T) {
+	for _, url := range []string{"/api/nope", "/ui/api/nope", "/ui/api"} {
+		w := get(router(assets()), http.MethodGet, url)
+		if w.Code != http.StatusNotFound || strings.Contains(w.Body.String(), "<title>") {
+			t.Errorf("%s: %d %q", url, w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestLegacyIsNotTheNewAppsBusiness(t *testing.T) {
+	if w := get(router(assets()), http.MethodGet, "/legacy/documents"); w.Code != http.StatusNotFound {
+		t.Fatalf("got %d", w.Code)
 	}
 }
