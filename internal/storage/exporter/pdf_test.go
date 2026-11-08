@@ -209,3 +209,42 @@ func TestStrokesStartAtTheTopLeftOfACroppedPage(t *testing.T) {
 }
 
 func near2(a, b float64) bool { return math.Abs(a-b) < 0.01 }
+
+// Measured on a real form: crosses drawn in checkboxes came out about 2.1pt
+// (6.6 device pixels) low at every height, with no horizontal error. v6 ink on
+// a PDF page is raised by that much.
+func TestV6InkOnPDFPagesIsRaisedByTheMeasuredOffset(t *testing.T) {
+	r, _, err := generated(t, a4Archive(t, archive.Page{Data: v6Stroke(), DocPage: 0}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, _ := r.GetPage(1)
+	s, _ := page.GetAllContentStreams()
+	var y float64
+	for _, l := range strings.Split(s, "\n") {
+		var a, b float64
+		if strings.HasSuffix(l, " m") {
+			if _, err := fmt.Sscanf(l, "%f %f m", &a, &b); err == nil {
+				y = b
+			}
+		}
+	}
+	// the stroke starts at v=0, the top of the page (841.89pt)
+	mb, _ := page.GetMediaBox()
+	want := mb.Ury + v6PdfInkOffsetPx*72.0/226.0
+	if !near2(y, want) {
+		t.Fatalf("stroke starts at y=%v, want %v", y, want)
+	}
+}
+
+func TestV6InkOnBlankPagesIsNotMoved(t *testing.T) {
+	r, _, err := generated(t, a4Archive(t, archive.Page{Data: v6Stroke(), DocPage: -1}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, _ := r.GetPage(1)
+	s, _ := page.GetAllContentStreams()
+	if strings.Contains(s, "843.") {
+		t.Fatalf("a blank page's ink was shifted: %q", s)
+	}
+}

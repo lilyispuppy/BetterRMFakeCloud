@@ -54,6 +54,12 @@ func pageScale(v6Pdf bool, width, height float64) (scale, xShift float64) {
 	return height / DeviceHeight, 0
 }
 
+// v6PdfInkOffsetPx is how far, in device pixels, v6 ink on a PDF page is raised.
+// Without it, crosses drawn in the checkboxes of a real form came out about
+// 2.1pt low at every height on the page, with no error across it. Upstream
+// rmapi has no such offset.
+const v6PdfInkOffsetPx = 6.6
+
 // backgroundPageNumber is the 1 based page of the source PDF for a page's
 // DocPage; 0 means there is none and the page is blank
 func backgroundPageNumber(docPage int) int {
@@ -118,6 +124,11 @@ func (p *PdfGenerator) Generate(zip *MyArchive, output io.Writer, options PdfGen
 
 		isV6Pdf := pageAnnotations.Data.Version == rm.V6 && pageAnnotations.DocPage >= 0 && p.pdfReader != nil
 		scale, xShift := pageScale(isV6Pdf, geo.Width, geo.Height)
+		// up the page, in points
+		vShift := 0.0
+		if isV6Pdf {
+			vShift = v6PdfInkOffsetPx * scale
+		}
 
 		contentCreator := contentstream.NewContentCreator()
 		contentCreator.Add_q()
@@ -134,6 +145,7 @@ func (p *PdfGenerator) Generate(zip *MyArchive, output io.Writer, options PdfGen
 				if line.BrushType == rm.HighlighterV5 {
 					last := len(line.Points) - 1
 					x1, y1 := normalized(line.Points[0], scale, xShift)
+					y1 -= vShift
 					x2, _ := normalized(line.Points[last], scale, xShift)
 					// make horizontal lines only, use y1
 					width := scale * 30
@@ -155,7 +167,7 @@ func (p *PdfGenerator) Generate(zip *MyArchive, output io.Writer, options PdfGen
 					path := draw.NewPath()
 					for i := 0; i < len(line.Points); i++ {
 						x1, y1 := normalized(line.Points[i], scale, xShift)
-						ux, uy := geo.toUser(x1, y1)
+						ux, uy := geo.toUser(x1, y1-vShift)
 						path = path.AppendPoint(draw.NewPoint(ux, uy))
 					}
 
@@ -209,8 +221,8 @@ func (p *PdfGenerator) Generate(zip *MyArchive, output io.Writer, options PdfGen
 				}
 				u1 := rect.X*scale + hlXOff
 				u2 := (rect.X+rect.W)*scale + hlXOff
-				vTop := rect.Y * scale
-				vBottom := (rect.Y + rect.H) * scale
+				vTop := rect.Y*scale - vShift
+				vBottom := (rect.Y+rect.H)*scale - vShift
 				x1, y2 := geo.toUser(u1, vBottom)
 				x2, y1 := geo.toUser(u2, vTop)
 
