@@ -5,7 +5,7 @@ import { AppShell } from "./components/AppShell";
 import { LibraryPage } from "./pages/library/LibraryPage";
 import { LoginPage } from "./pages/Login";
 import { NotFound } from "./pages/NotFound";
-import { ScreenSharePage } from "./pages/ScreenShare";
+import { ScreenSharePage } from "./pages/screenshare/ScreenSharePage";
 import { AdminPage } from "./pages/settings/AdminPage";
 import { ConnectPage } from "./pages/settings/ConnectPage";
 import { DevicesPage } from "./pages/settings/DevicesPage";
